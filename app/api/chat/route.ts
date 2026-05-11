@@ -6,11 +6,12 @@
  * The service key never leaves the server — the browser only talks to /api/chat.
  *
  * Powabase streams SSE events:
- *   chunk           → token of the final LLM response
- *   step_started    → new ReAct iteration
+ *   start           → run started (includes session_id)
+ *   content_delta   → streaming token (delta field)
  *   tool_call       → agent calling a tool
  *   tool_result     → tool result
- *   run_complete    → run finished (includes session_id if auto-created)
+ *   chunk           → full response content
+ *   complete        → run finished
  */
 import { NextRequest } from "next/server";
 import { POWABASE_URL, powabaseHeaders } from "@/lib/powabase-server";

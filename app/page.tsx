@@ -12,24 +12,22 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ChatArea from "@/components/ChatArea";
 import MessageInput from "@/components/MessageInput";
-import FileUpload from "@/components/FileUpload";
 import { Conversation, Message } from "@/lib/types";
 
-const DEFAULT_AGENT_NAME = "powabase-chat";
-const DEFAULT_SYSTEM_PROMPT =
-  "You are a helpful AI assistant. When the user provides documents, use your knowledge_search tool to find relevant information before answering. Be concise, accurate, and friendly.";
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
-  const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // ── Bootstrap: get or create the default Powabase agent ─────────────────
@@ -57,30 +55,22 @@ export default function Home() {
     }
   }, []);
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
+
   useEffect(() => {
     async function init() {
       try {
-        const res = await fetch("/api/agents");
+        // Setup user — creates or retrieves their dedicated agent + KB
+        const res = await fetch("/api/user/setup");
+        if (!res.ok) { router.push("/login"); return; }
+
         const data = await res.json();
-        const agents: { id: string; name: string }[] = data.agents ?? [];
-
-        let agent = agents.find((a) => a.name === DEFAULT_AGENT_NAME);
-
-        if (!agent) {
-          const created = await fetch("/api/agents", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: DEFAULT_AGENT_NAME,
-              system_prompt: DEFAULT_SYSTEM_PROMPT,
-              model: "gpt-4o-mini",
-            }),
-          });
-          agent = await created.json();
-        }
-
-        setAgentId(agent!.id);
-        await loadConversations(agent!.id);
+        setUser(data.user);
+        setAgentId(data.agentId);
+        await loadConversations(data.agentId);
       } catch (e) {
         console.error("Init error:", e);
       } finally {
@@ -89,7 +79,7 @@ export default function Home() {
     }
 
     init();
-  }, [loadConversations]);
+  }, [loadConversations, router]);
 
   // ── Select an existing conversation → load its run history from Powabase ─
 
@@ -132,7 +122,7 @@ export default function Home() {
   async function deleteConversation(conv: Conversation) {
     try {
       await fetch(
-        `/api/sessions?agentId=${conv.agentId}&sessionId=${conv.sessionId}`,
+        `/api/sessions?sessionId=${conv.sessionId}`,
         { method: "DELETE" }
       );
       setConversations((prev) => prev.filter((c) => c.sessionId !== conv.sessionId));
@@ -184,14 +174,14 @@ export default function Home() {
           try {
             const event = JSON.parse(raw);
 
-            // Powabase returns session_id in both start and complete events
+            // session_id is in the "start" and "complete" events
             if (event.session_id && !newSessionId) {
               newSessionId = event.session_id;
             }
 
-            // "chunk" events carry LLM token output
-            if (event.event === "chunk" && event.content) {
-              fullContent += event.content;
+            // "content_delta" events carry real-time streaming tokens
+            if (event.event === "content_delta" && event.delta) {
+              fullContent += event.delta;
               setStreamingContent(fullContent);
             }
           } catch {
@@ -244,10 +234,12 @@ export default function Home() {
       <Sidebar
         conversations={conversations}
         activeSessionId={activeSessionId}
+        agentId={agentId}
+        user={user}
         onNew={newChat}
         onSelect={selectConversation}
         onDelete={deleteConversation}
-        onUploadClick={() => setShowUpload(true)}
+        onLogout={logout}
       />
 
       <main className="flex flex-col flex-1 overflow-hidden">
@@ -258,10 +250,6 @@ export default function Home() {
         />
         <MessageInput onSend={sendMessage} disabled={streaming} />
       </main>
-
-      {showUpload && (
-        <FileUpload agentId={agentId} onClose={() => setShowUpload(false)} />
-      )}
     </div>
   );
 }
