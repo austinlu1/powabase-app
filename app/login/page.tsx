@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
+
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,6 +58,11 @@ export default function LoginPage() {
           <p className="text-white/40 text-sm mt-1">
             {mode === "login" ? "Sign in to your account" : "Create a new account"}
           </p>
+          {reason === "session_expired" && (
+            <p className="mt-3 text-sm text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+              Your session expired. Please sign in again.
+            </p>
+          )}
         </div>
 
         {/* Card */}

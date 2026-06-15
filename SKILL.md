@@ -86,7 +86,9 @@ Knowledge bases store chunked and embedded text from one or more sources for sim
 
 | Endpoint | Description |
 |---|---|
+| `GET /api/knowledge-bases/{id}/sources` | List indexed sources in this KB. Returns `{ sources: [{ id, source_id, status, ... }] }` — `id` is the `indexed_source_id` used in other endpoints |
 | `POST /api/knowledge-bases/{id}/sources` | Add source. Body: `{ "source_id": "uuid" }`. Triggers async indexing |
+| `DELETE /api/knowledge-bases/{id}/sources/{indexed_source_id}` | Remove source from this KB only (cascades to chunks, embeddings, etc.). Does NOT delete the underlying source — use this to detach a shared source from one KB without affecting others |
 | `POST /api/knowledge-bases/{id}/sources/{indexed_source_id}/cancel` | Cancel in-progress indexing (`pending` or `indexing` only) |
 | `POST /api/knowledge-bases/{id}/reindex` | Re-index. Optional body: `{ "indexed_source_ids": [...] }` or `{ "failed_only": true }` |
 

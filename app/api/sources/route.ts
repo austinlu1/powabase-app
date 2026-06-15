@@ -1,45 +1,50 @@
 /**
- * GET /api/sources
- * Returns only the sources belonging to the authenticated user
- * by joining user_sources with Powabase source details.
+ * GET /api/sources?agentId={id}
+ * Returns sources for the authenticated user, filtered by agent KB.
+ * Source name format: "{userId}:{kbId}:{uuid}:{filename}"
+ * For sources shared across agents: "{userId}:{kbA}+{kbB}:{uuid}:{filename}"
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromCookie, pbGet, pbRestGet } from "@/lib/powabase-server";
-
-interface UserSourceRow {
-  source_id: string;
-  name: string;
-  created_at: string;
-}
+import { getUserFromCookie, pbGet, listAgentsWithDescription, parseAgentName } from "@/lib/powabase-server";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserFromCookie(req);
+    const { user, applyRefresh } = await getUserFromCookie(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Get this user's source IDs from our table
-    const rows = await pbRestGet<UserSourceRow>("user_sources", {
-      user_id: `eq.${user.id}`,
-      select: "source_id,name,created_at",
-      order: "created_at.desc",
-    });
+    const agentId = req.nextUrl.searchParams.get("agentId");
 
-    if (rows.length === 0) return NextResponse.json({ sources: [] });
+    const data = await pbGet("/api/sources");
+    const allSources: { id: string; name?: string; extraction_status?: string; created_at?: string }[] = data.sources ?? [];
 
-    // Fetch full source details from Powabase for each source
-    const sources = await Promise.all(
-      rows.map(async (row) => {
-        try {
-          const source = await pbGet(`/api/sources/${row.source_id}`);
-          return source;
-        } catch {
-          // Source may have been deleted directly in Powabase — return minimal info
-          return { id: row.source_id, name: row.name, extraction_status: "unknown", created_at: row.created_at };
-        }
+    if (!agentId) {
+      const sources = allSources
+        .filter((s) => s.name?.startsWith(`${user.id}:`))
+        .map((s) => ({ ...s, name: s.name!.split(":").slice(3).join(":") }));
+      return applyRefresh(NextResponse.json({ sources }));
+    }
+
+    // Look up the agent's kbId and verify ownership
+    const agents = await listAgentsWithDescription();
+    const agent = agents.find((a) => a.id === agentId);
+    if (!agent) return applyRefresh(NextResponse.json({ sources: [] }));
+    const meta = parseAgentName(agent.name);
+    if (!meta || meta.uid !== user.id) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+    const kbId = meta.kid;
+    const userSources = allSources.filter((s) => s.name?.startsWith(`${user.id}:`));
+
+    // Filter: owned by this user AND kbId appears in the "+" separated kbIds field
+    // Name format: "{userId}:{kbA}+{kbB}:{uuid}:{filename}"
+    const sources = userSources
+      .filter((s) => {
+        const kbField = s.name!.split(":")[1] ?? "";
+        return kbField.split("+").includes(kbId);
       })
-    );
+      .map((s) => ({ ...s, name: s.name!.split(":").slice(3).join(":") }));
 
-    return NextResponse.json({ sources });
+    return applyRefresh(NextResponse.json({ sources }));
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

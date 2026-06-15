@@ -1,9 +1,9 @@
 // ── Agents ───────────────────────────────────────────────────────────────────
 
-export interface Agent {
-  id: string;
-  name: string;
-  description?: string;
+export interface UserAgent {
+  id: string;           // agent_id from Powabase
+  kb_id: string;        // kb_id from Powabase
+  name: string;         // display name from user_agents table
   system_prompt: string;
   model: string;
   created_at: string;

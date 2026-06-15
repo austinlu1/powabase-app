@@ -1,76 +1,93 @@
 "use client";
 
-/**
- * Main page — the full ChatGPT-like shell.
- *
- * How it works:
- * 1. On load, GET /api/agents to find (or create) the default agent in Powabase.
- * 2. Each "New Chat" starts fresh — session is auto-created by Powabase on first message.
- * 3. Messages stream back via SSE from POST /api/chat (thin proxy to Powabase).
- * 4. Sessions are stored in Powabase — we list them to rebuild the sidebar.
- * 5. File uploads → POST /api/upload → Powabase Source + KB (RAG handled by Powabase).
- */
-
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import AgentsScreen from "@/components/AgentsScreen";
 import ChatArea from "@/components/ChatArea";
-import MessageInput from "@/components/MessageInput";
-import { Conversation, Message } from "@/lib/types";
-
+import MessageInput, { SessionAttachment } from "@/components/MessageInput";
+import { Conversation, Message, UserAgent } from "@/lib/types";
 
 export default function Home() {
   const router = useRouter();
+
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
-  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agents, setAgents] = useState<UserAgent[]>([]);
+  const [activeAgent, setActiveAgent] = useState<UserAgent | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [sessionLimitReached, setSessionLimitReached] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Session-scoped attachments — extracted text lives here, not in the KB
+  const [attachmentData, setAttachmentData] = useState<(SessionAttachment & { extractedText: string; persisted: boolean })[]>([]);
+  const sessionAttachments: SessionAttachment[] = attachmentData.map(
+    ({ id, name, type, loading, error }) => ({ id, name, type, loading, error })
+  );
 
-  // ── Bootstrap: get or create the default Powabase agent ─────────────────
+  // ── Load conversations for a given agent ─────────────────────────────────
 
-  const loadConversations = useCallback(async (aid: string) => {
+  const loadConversations = useCallback(async (agentId: string) => {
     try {
-      const res = await fetch(`/api/sessions?agentId=${aid}`);
+      const res = await fetch(`/api/sessions?agentId=${agentId}`);
       const data = await res.json();
       const sessions: { session_id: string; created_at: string; first_message?: string }[] =
         data.sessions ?? [];
 
-      const convs: Conversation[] = sessions.map((s, i) => ({
-        sessionId: s.session_id,
-        agentId: aid,
-        title: s.first_message ?? `Conversation ${sessions.length - i}`,
-        createdAt: s.created_at,
-      }));
+      const convs: Conversation[] = sessions.map((s, i) => {
+        const custom = localStorage.getItem(`conv_title_${s.session_id}`);
+        return {
+          sessionId: s.session_id,
+          agentId,
+          title: custom ?? s.first_message ?? `Conversation ${sessions.length - i}`,
+          createdAt: s.created_at,
+        };
+      });
 
-      convs.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      convs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setConversations(convs);
     } catch (e) {
       console.error("Failed to load sessions:", e);
     }
   }, []);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  }
+  // ── Load all user agents ──────────────────────────────────────────────────
+
+  const loadAgents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agents");
+      const data = await res.json();
+      const list: UserAgent[] = data.agents ?? [];
+      setAgents(list);
+      return list;
+    } catch (e) {
+      console.error("Failed to load agents:", e);
+      return [];
+    }
+  }, []);
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+
+  const initRan = useRef(false);
 
   useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+
     async function init() {
       try {
-        // Setup user — creates or retrieves their dedicated agent + KB
-        const res = await fetch("/api/user/setup");
-        if (!res.ok) { router.push("/login"); return; }
+        // Verify auth + create first agent if this is a new user
+        const setupRes = await fetch("/api/user/setup");
+        if (setupRes.status === 401) { router.replace("/login?reason=session_expired"); return; }
+        if (!setupRes.ok) { router.replace("/login"); return; }
 
-        const data = await res.json();
-        setUser(data.user);
-        setAgentId(data.agentId);
-        await loadConversations(data.agentId);
+        const setupData = await setupRes.json();
+        setUser(setupData.user);
+
+        // Load all agents — user chooses from the agents screen
+        await loadAgents();
       } catch (e) {
         console.error("Init error:", e);
       } finally {
@@ -79,14 +96,119 @@ export default function Home() {
     }
 
     init();
-  }, [loadConversations, router]);
+  }, [loadAgents, router]);
 
-  // ── Select an existing conversation → load its run history from Powabase ─
+  // ── Switch active agent ───────────────────────────────────────────────────
+
+  async function switchAgent(agent: UserAgent) {
+    setActiveAgent(agent);
+    setActiveSessionId(null);
+    setMessages([]);
+    setStreamingContent("");
+    setAttachmentData([]);
+    setSessionLimitReached(false);
+    await loadConversations(agent.id);
+  }
+
+  // ── Create new agent ──────────────────────────────────────────────────────
+
+  async function createAgent(name: string, systemPrompt: string): Promise<boolean> {
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, system_prompt: systemPrompt }),
+      });
+      if (res.status === 401) { router.replace("/login?reason=session_expired"); return false; }
+      if (!res.ok) return false;
+      const newAgent: UserAgent = await res.json();
+      const updated = [...agents, newAgent];
+      setAgents(updated);
+      await switchAgent(newAgent);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── Update agent system prompt ────────────────────────────────────────────
+
+  async function updateAgent(agent: UserAgent, newPrompt: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/agents/${agent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system_prompt: newPrompt }),
+      });
+      if (res.status === 401) { router.replace("/login?reason=session_expired"); return false; }
+      if (!res.ok) return false;
+      const updated = await res.json();
+      setAgents((prev) =>
+        prev.map((a) => a.id === agent.id ? { ...a, system_prompt: updated.system_prompt } : a)
+      );
+      if (activeAgent?.id === agent.id) {
+        setActiveAgent((prev) => prev ? { ...prev, system_prompt: updated.system_prompt } : prev);
+      }
+      newChat();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── Delete agent ──────────────────────────────────────────────────────────
+
+  async function deleteAgent(agent: UserAgent) {
+    try {
+      await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
+      const updated = agents.filter((a) => a.id !== agent.id);
+      setAgents(updated);
+
+      if (activeAgent?.id === agent.id) {
+        setActiveAgent(null);
+        setActiveSessionId(null);
+        setConversations([]);
+        setMessages([]);
+        setAttachmentData([]);
+        setSessionLimitReached(false);
+      }
+    } catch (e) {
+      console.error("Delete agent error:", e);
+    }
+  }
+
+  // ── Logout ────────────────────────────────────────────────────────────────
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
+
+  // ── Select conversation ───────────────────────────────────────────────────
 
   async function selectConversation(conv: Conversation) {
     setActiveSessionId(conv.sessionId);
     setMessages([]);
     setStreamingContent("");
+    setAttachmentData([]);
+    setSessionLimitReached(false);
+
+    // Restore session attachments from DB
+    try {
+      const res = await fetch(`/api/session-sources?sessionId=${conv.sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const rows: { id: string; name: string; type: string; extracted_text: string }[] = data.sources ?? [];
+        setAttachmentData(rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type as "file" | "url",
+          extractedText: r.extracted_text,
+          loading: false,
+          persisted: true,
+        })));
+      }
+    } catch { /* silently fail */ }
 
     try {
       const res = await fetch(`/api/sessions/runs?sessionId=${conv.sessionId}`);
@@ -100,7 +222,14 @@ export default function Home() {
       for (const run of runs) {
         const userMsg = run.input_messages?.find((m) => m.role === "user");
         const assistantMsg = run.output_messages?.find((m) => m.role === "assistant");
-        if (userMsg) msgs.push({ role: "user", content: userMsg.content });
+        if (userMsg) {
+          // Strip injected context block (everything before the final "---\n\n" separator)
+          const raw = userMsg.content ?? "";
+          const sep = "\n\n---\n\n";
+          const lastSep = raw.lastIndexOf(sep);
+          const displayContent = lastSep !== -1 ? raw.slice(lastSep + sep.length) : raw;
+          msgs.push({ role: "user", content: displayContent });
+        }
         if (assistantMsg) msgs.push({ role: "assistant", content: assistantMsg.content });
       }
       setMessages(msgs);
@@ -109,22 +238,45 @@ export default function Home() {
     }
   }
 
-  // ── New chat: clear local state; Powabase creates session on first message
+  // ── New chat ──────────────────────────────────────────────────────────────
 
   function newChat() {
     setActiveSessionId(null);
     setMessages([]);
     setStreamingContent("");
+    setAttachmentData([]);
+    setSessionLimitReached(false);
   }
 
-  // ── Delete a conversation (Powabase deletes the session) ─────────────────
+  // ── Back to agents screen ─────────────────────────────────────────────────
+
+  function backToAgents() {
+    setActiveAgent(null);
+    setActiveSessionId(null);
+    setMessages([]);
+    setStreamingContent("");
+    setAttachmentData([]);
+    setSessionLimitReached(false);
+    setConversations([]);
+  }
+
+  // ── Rename conversation ───────────────────────────────────────────────────
+
+  function renameConversation(conv: Conversation, newTitle: string) {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    localStorage.setItem(`conv_title_${conv.sessionId}`, trimmed);
+    setConversations((prev) =>
+      prev.map((c) => c.sessionId === conv.sessionId ? { ...c, title: trimmed } : c)
+    );
+  }
+
+  // ── Delete conversation ───────────────────────────────────────────────────
 
   async function deleteConversation(conv: Conversation) {
     try {
-      await fetch(
-        `/api/sessions?sessionId=${conv.sessionId}`,
-        { method: "DELETE" }
-      );
+      await fetch(`/api/sessions?sessionId=${conv.sessionId}`, { method: "DELETE" });
+      localStorage.removeItem(`conv_title_${conv.sessionId}`);
       setConversations((prev) => prev.filter((c) => c.sessionId !== conv.sessionId));
       if (activeSessionId === conv.sessionId) newChat();
     } catch (e) {
@@ -132,10 +284,97 @@ export default function Home() {
     }
   }
 
-  // ── Send message → Powabase streams SSE response ─────────────────────────
+  // ── Session attachments ───────────────────────────────────────────────────
+
+  async function persistAttachment(sessionId: string, a: SessionAttachment & { extractedText: string }) {
+    try {
+      await fetch("/api/session-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          source_id: a.id,
+          name: a.name,
+          type: a.type,
+          extracted_text: a.extractedText,
+        }),
+      });
+    } catch { /* best effort */ }
+  }
+
+  async function attachFile(file: File) {
+    const tempId = crypto.randomUUID();
+    setAttachmentData((prev) => [...prev, { id: tempId, name: file.name, type: "file", extractedText: "", loading: true, persisted: false }]);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/session-sources/attach-file", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.message ?? data.error ?? "Attach failed";
+        setAttachmentData((prev) => prev.map((a) =>
+          a.id === tempId ? { ...a, loading: false, error: errMsg } : a
+        ));
+        return;
+      }
+      setAttachmentData((prev) => prev.map((a) =>
+        a.id === tempId ? { ...a, id: data.id, extractedText: data.extractedText, loading: false } : a
+      ));
+      // Persist immediately if we already have a session
+      if (activeSessionId) {
+        await persistAttachment(activeSessionId, { ...data, persisted: false });
+        setAttachmentData((prev) => prev.map((a) => a.id === data.id ? { ...a, persisted: true } : a));
+      }
+    } catch (e: unknown) {
+      setAttachmentData((prev) => prev.map((a) =>
+        a.id === tempId ? { ...a, loading: false, error: String(e) } : a
+      ));
+    }
+  }
+
+  async function attachUrl(url: string) {
+    const tempId = crypto.randomUUID();
+    setAttachmentData((prev) => [...prev, { id: tempId, name: url, type: "url", extractedText: "", loading: true, persisted: false }]);
+    try {
+      const res = await fetch("/api/session-sources/attach-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Attach failed");
+      setAttachmentData((prev) => prev.map((a) =>
+        a.id === tempId ? { ...a, id: data.id, extractedText: data.extractedText, loading: false } : a
+      ));
+      if (activeSessionId) {
+        await persistAttachment(activeSessionId, { ...data, persisted: false });
+        setAttachmentData((prev) => prev.map((a) => a.id === data.id ? { ...a, persisted: true } : a));
+      }
+    } catch {
+      setAttachmentData((prev) => prev.filter((a) => a.id !== tempId));
+    }
+  }
+
+  async function removeAttachment(id: string) {
+    setAttachmentData((prev) => prev.filter((a) => a.id !== id));
+    if (activeSessionId) {
+      try { await fetch(`/api/session-sources/${id}`, { method: "DELETE" }); } catch { /* best effort */ }
+    }
+  }
+
+  // ── Send message ──────────────────────────────────────────────────────────
 
   async function sendMessage(text: string) {
-    if (!agentId || streaming) return;
+    if (!activeAgent || streaming) return;
+
+    // Build message with session context injected
+    const readyAttachments = attachmentData.filter((a) => !a.loading && !a.error && a.extractedText);
+    const contextBlock = readyAttachments.length > 0
+      ? readyAttachments.map((a) =>
+          `[Context: ${a.type === "url" ? "Website" : "File"} — ${a.name}]\n${a.extractedText}`
+        ).join("\n\n---\n\n") + "\n\n---\n\n"
+      : "";
+    const messageWithContext = contextBlock + text;
 
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setStreaming(true);
@@ -146,13 +385,20 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId,
-          message: text,
+          agentId: activeAgent.id,
+          message: messageWithContext,
           sessionId: activeSessionId ?? undefined,
         }),
       });
 
-      if (!res.body) throw new Error("No response body");
+      if (res.status === 401) { router.replace("/login?reason=session_expired"); return; }
+      if (res.status === 429) {
+        setSessionLimitReached(true);
+        // Remove the user message we optimistically appended — it was never processed
+        setMessages((prev) => prev.slice(0, -1));
+        return;
+      }
+      if (!res.ok || !res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -177,6 +423,12 @@ export default function Home() {
             // session_id is in the "start" and "complete" events
             if (event.session_id && !newSessionId) {
               newSessionId = event.session_id;
+              // Persist any unpersisted attachments now that we have a session ID
+              const unpersisted = attachmentData.filter((a) => !a.persisted && !a.loading && !a.error && a.extractedText);
+              for (const a of unpersisted) {
+                persistAttachment(newSessionId!, a);
+              }
+              setAttachmentData((prev) => prev.map((a) => ({ ...a, persisted: true })));
             }
 
             // "content_delta" events carry real-time streaming tokens
@@ -190,18 +442,13 @@ export default function Home() {
         }
       }
 
-      // Commit the full assistant message to state
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: fullContent },
-      ]);
+      setMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
 
-      // Register new conversation in the sidebar
       if (newSessionId && newSessionId !== activeSessionId) {
         setActiveSessionId(newSessionId);
         const newConv: Conversation = {
           sessionId: newSessionId,
-          agentId,
+          agentId: activeAgent.id,
           title: text.slice(0, 40) + (text.length > 40 ? "…" : ""),
           createdAt: new Date().toISOString(),
         };
@@ -231,24 +478,48 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden">
+
       <Sidebar
+        activeAgent={activeAgent}
         conversations={conversations}
         activeSessionId={activeSessionId}
-        agentId={agentId}
         user={user}
-        onNew={newChat}
-        onSelect={selectConversation}
-        onDelete={deleteConversation}
+        onNewChat={newChat}
+        onSelectConversation={selectConversation}
+        onDeleteConversation={deleteConversation}
+        onRenameConversation={renameConversation}
+        onBackToAgents={backToAgents}
         onLogout={logout}
       />
 
       <main className="flex flex-col flex-1 overflow-hidden">
-        <ChatArea
-          messages={messages}
-          streaming={streaming}
-          streamingContent={streamingContent}
-        />
-        <MessageInput onSend={sendMessage} disabled={streaming} />
+        {!activeAgent ? (
+          <AgentsScreen
+            agents={agents}
+            onSelectAgent={switchAgent}
+            onCreateAgent={createAgent}
+            onUpdateAgent={updateAgent}
+            onDeleteAgent={deleteAgent}
+          />
+        ) : (
+          <>
+            <ChatArea
+              messages={messages}
+              streaming={streaming}
+              streamingContent={streamingContent}
+            />
+            <MessageInput
+              onSend={sendMessage}
+              disabled={streaming}
+              placeholder={`Message ${activeAgent.name}…`}
+              attachments={sessionAttachments}
+              onAttachFile={attachFile}
+              onAttachUrl={attachUrl}
+              onRemoveAttachment={removeAttachment}
+              limitReached={sessionLimitReached}
+            />
+          </>
+        )}
       </main>
     </div>
   );

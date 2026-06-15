@@ -37,7 +37,7 @@ export function setAuthCookies(data: {
   user: { id: string; email: string };
 }) {
   const response = NextResponse.json({ user: data.user });
-  const maxAge = 60 * 60 * 24 * 7; // 7 days
+  const maxAge = 60 * 60 * 24 * 30; // 30 days
 
   response.cookies.set("pb_token", data.access_token, {
     httpOnly: true,

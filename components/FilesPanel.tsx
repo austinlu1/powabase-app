@@ -11,7 +11,7 @@ import {
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
 import ReactMarkdown from "react-markdown";
 
-interface PbSource {
+export interface PbSource {
   id: string;
   name: string;
   file_type: string;
@@ -172,7 +172,7 @@ export default function FilesPanel({ agentId }: FilesPanelProps) {
 
 // ── File viewer modal ────────────────────────────────────────────────────────
 
-function FileViewerModal({
+export function FileViewerModal({
   source,
   onClose,
   onDelete,
@@ -272,7 +272,7 @@ function FileViewerModal({
 
 // ── Shared components ────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string }) {
   if (status === "extracted" || status === "completed") {
     return (
       <span className="flex items-center gap-1 text-emerald-400 text-xs">
