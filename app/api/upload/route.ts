@@ -64,8 +64,9 @@ export async function POST(req: NextRequest) {
       const err = e as { status?: number; body?: Record<string, unknown> };
       if (err.status === 409) {
         // Powabase deduplicates by content — find the existing source and reuse it
+        const errSource = err.body?.source as Record<string, unknown> | undefined;
         let existingId: string | null =
-          (err.body?.id ?? err.body?.source_id ?? err.body?.source?.id ?? null) as string | null;
+          (err.body?.id ?? err.body?.source_id ?? errSource?.id ?? null) as string | null;
 
         if (!existingId) {
           // Fall back: search all sources for one matching this filename
