@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     if (!res.ok) {
-      return NextResponse.json({ error: data.msg ?? data.error ?? "Signup failed" }, { status: res.status });
+      return NextResponse.json({ error: data.msg ?? data.error ?? data.message ?? JSON.stringify(data) }, { status: res.status });
     }
 
     return setAuthCookies(data);
