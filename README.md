@@ -1,6 +1,25 @@
 # Powabase Chat App
 
-A full-stack AI chat application built on [Powabase](https://powabase.ai). Users sign up, create AI agents with custom system prompts and knowledge bases, chat with streaming responses, and embed a public chat widget on any website - all without managing any AI infrastructure directly.
+A full-stack AI chat application built on [Powabase](https://powabase.ai). Users sign up, create AI agents backed by their own knowledge bases, upload documents and websites as sources, and chat with streaming AI responses. Agents can also be embedded as a floating chat widget on any external website with just two lines of HTML - no backend required on the host site.
+
+This app is designed to be a ready-to-deploy foundation. Clone it, point it at your Powabase project, and you have a fully functional multi-user AI chat platform.
+
+## What it does
+
+**For your users (logged-in accounts):**
+- Sign up and log in with email and password
+- Create multiple AI agents, each with a custom name and system prompt
+- Upload documents or import website URLs into each agent's knowledge base for RAG-powered answers
+- Chat with agents in real time with streaming responses and full conversation history
+- Attach files or URLs directly in the chat input for one-off context without KB indexing
+- Rename, search, and switch between past conversations
+- Embed any agent as a widget on an external website via the Go Live section
+
+**For visitors on embedded websites (no account needed):**
+- Chat with the embedded agent directly on any website
+- Upload files or import URLs as session context
+- Conversation history persists in the browser across visits
+- Switch between past sessions via a sliding sidebar
 
 ## Features
 
@@ -23,7 +42,7 @@ A full-stack AI chat application built on [Powabase](https://powabase.ai). Users
 - **Sessions** - Powabase manages server-side conversation history; the app stores only the session ID
 - **Streaming (SSE)** - `POST /api/agents/{id}/run/stream` drives real-time token delivery
 - **Auth (GoTrue)** - email/password signup and login; tokens verified server-side on every API request
-- **PostgREST** - a single `session_sources` table stores session-scoped attachment metadata
+- **PostgREST** - the `session_sources` table stores session-scoped attachment metadata (see Database setup below)
 
 ## Architecture
 
@@ -55,14 +74,58 @@ Browser
   +- PostgREST             session_sources table
 ```
 
+## Database setup
+
+This app requires one table in your Powabase project: `session_sources`. It stores the extracted text of files and URLs attached directly in the chat input (session-scoped context that is injected inline rather than indexed into a KB).
+
+Run this SQL in your Powabase project under **SQL Editor**:
+
+```sql
+create table if not exists public.session_sources (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  session_id    text not null,
+  source_id     text not null default '',
+  name          text not null,
+  type          text not null,
+  extracted_text text not null default '',
+  created_at    timestamptz not null default now()
+);
+
+-- Enable Row Level Security
+alter table public.session_sources enable row level security;
+
+-- Users can only read and write their own rows
+create policy "Users manage their own session sources"
+  on public.session_sources
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+**Column reference:**
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | uuid | Primary key, auto-generated |
+| `user_id` | uuid | References `auth.users` - scopes rows to the logged-in user |
+| `session_id` | text | The Powabase agent session ID this attachment belongs to |
+| `source_id` | text | Internal reference ID for the attachment |
+| `name` | text | Display name (filename or URL) |
+| `type` | text | `"file"` or `"url"` |
+| `extracted_text` | text | Full extracted markdown/text content injected as context |
+| `created_at` | timestamptz | When the attachment was added |
+
+RLS ensures each user can only read and write their own rows - no additional auth checks are needed in the API routes.
+
 ## Ownership model
 
-No extra database tables are needed for agent or source ownership. Ownership is encoded directly in the Powabase object name fields:
+No extra tables are needed for agent or source ownership. Ownership is encoded directly in the Powabase object name fields:
 
 - **Agents**: `{userId}__{kbId}__{displayName}` - parsed server-side to filter each user's agents
 - **Sources**: `{userId}:{kbIds}:{uuid}:{filename}` - multiple KBs joined with `+` when a source is shared
 
-The only application-specific table is `session_sources` (PostgREST), which maps session attachments to their extracted text.
+The `session_sources` table is the only application-specific table in the entire app.
 
 ## Session-scoped vs KB-indexed context
 
@@ -107,6 +170,7 @@ Visitor sessions are stored in `localStorage` under `widget_sessions_{agentId}`.
 ## Prerequisites
 
 - A [Powabase](https://powabase.ai) project
+- The `session_sources` table created (see Database setup above)
 - Node 20+ / npm
 - An AWS account (for hosting via Amplify)
 
@@ -155,6 +219,8 @@ Download and run the MSI installer:
 https://awscli.amazonaws.com/AWSCLIV2.msi
 ```
 
+After installing, close and reopen your terminal. If `aws` is still not recognized, open **Start -> Search "Environment Variables" -> Edit the system environment variables -> Environment Variables -> System variables -> Path -> Edit** and add `C:\Program Files\Amazon\AWSCLIV2\` if it is not already there.
+
 **Linux:**
 ```bash
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
@@ -162,7 +228,7 @@ unzip awscliv2.zip
 sudo ./aws/install
 ```
 
-Verify the installation:
+Verify the installation on any OS:
 ```bash
 aws --version
 ```
