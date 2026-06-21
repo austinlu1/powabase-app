@@ -180,7 +180,7 @@ If you do not have a Powabase project yet, follow these steps first:
 
 1. Go to [https://powabase.ai](https://powabase.ai) and create an account
 2. Click **New Project**, give it a name, and wait for it to finish provisioning
-3. Go to **Project Settings -> API**
+3. Click **Connect** at the top of the page
 4. Copy the **Project URL** - this is your `POWABASE_URL`
 5. Copy the **Secret key** (the long string starting with `ey`) - this is your `POWABASE_KEY`
 6. Go to **SQL Editor** in your Powabase dashboard and run the SQL from the Database setup section above to create the `session_sources` table
