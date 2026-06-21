@@ -4,6 +4,14 @@ A full-stack AI chat application built on [Powabase](https://powabase.ai). Users
 
 This app is designed to be a ready-to-deploy foundation. Clone it, point it at your Powabase project, and you have a fully functional multi-user AI chat platform.
 
+## Screenshots
+
+![Agents Screen](screenshots/agents-screen.png)
+*Agents screen - create and manage multiple AI agents, each with its own knowledge base*
+
+![Chat Screen](screenshots/chat-screen.png)
+*Chat screen - conversations, sources, and the Go Live embed snippet*
+
 ## What it does
 
 **For your users (logged-in accounts):**
