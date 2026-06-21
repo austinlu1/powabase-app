@@ -169,10 +169,23 @@ Visitor sessions are stored in `localStorage` under `widget_sessions_{agentId}`.
 
 ## Prerequisites
 
-- A [Powabase](https://powabase.ai) project
+- A [Powabase](https://powabase.ai) project (see Setting up Powabase below)
 - The `session_sources` table created (see Database setup above)
 - Node 20+ / npm
 - An AWS account (for hosting via Amplify)
+
+## Setting up Powabase
+
+If you do not have a Powabase project yet, follow these steps first:
+
+1. Go to [https://powabase.ai](https://powabase.ai) and create an account
+2. Click **New Project**, give it a name, and wait for it to finish provisioning
+3. Go to **Project Settings -> API**
+4. Copy the **Project URL** - this is your `POWABASE_URL`
+5. Copy the **Secret key** (the long string starting with `ey`) - this is your `POWABASE_KEY`
+6. Go to **SQL Editor** in your Powabase dashboard and run the SQL from the Database setup section above to create the `session_sources` table
+
+Once you have the URL and key, add them to your `.env.local` file (local development) or Amplify environment variables (hosted deployment).
 
 ## Local development
 
