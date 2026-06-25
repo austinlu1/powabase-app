@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const { email } = await req.json();
     if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
 
-    await fetch(`${POWABASE_URL}/auth/v1/recover`, {
+    const res = await fetch(`${POWABASE_URL}/auth/v1/recover`, {
       method: "POST",
       headers: {
         apikey: process.env.POWABASE_KEY!,
@@ -21,8 +21,10 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ email }),
     });
 
-    // Always return 200 — don't reveal whether the email exists
-    return NextResponse.json({ success: true });
+    const text = await res.text();
+    console.log("GoTrue recover response:", res.status, text);
+
+    return NextResponse.json({ success: true, debug: { status: res.status, body: text } });
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
