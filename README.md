@@ -25,6 +25,8 @@ This app is designed to be a ready-to-deploy foundation. Clone it, point it at y
 - Chat with agents in real time with streaming responses and full conversation history
 - Attach files or URLs directly in the chat input for one-off context without KB indexing
 - Rename, search, and switch between past conversations
+- Export any conversation as a `.txt` file with a single click
+- View a usage dashboard showing sessions, exchanges, and estimated token usage per agent
 - Embed any agent as a widget on an external website via the Go Live section
 
 **For visitors on embedded websites (no account needed):**
@@ -40,6 +42,8 @@ This app is designed to be a ready-to-deploy foundation. Clone it, point it at y
 - **Session-scoped context** - attach files or URLs directly in the chat input; their extracted text is injected inline as context without indexing into the KB
 - **Streaming responses** - answers stream token-by-token over SSE in real time with a live typing indicator
 - **Conversation history** - sessions persist server-side; users can rename, search, and switch between past conversations
+- **Export conversations** - download any conversation as a `.txt` file; attached sources are listed once at the top, not repeated in every message
+- **Usage dashboard** - `/usage` page shows per-agent session count, message exchange count, and estimated token usage
 - **Embeddable widget** - two-line HTML snippet generates a floating chat button on any website; no backend required on the host site
 - **Widget session sidebar** - visitors can switch between past conversations, rename them, and search - all persisted in `localStorage`
 - **Markdown rendering** - assistant responses render rich markdown (headers, lists, code blocks, bold/italic)
@@ -67,7 +71,7 @@ Browser
         |
         v
   Next.js API Routes (server-side, authenticated)
-  |- /api/auth/*           Login, signup, logout, me
+  |- /api/auth/*           Login, signup, logout, password reset
   |- /api/user/setup       Bootstrap first agent for new users
   |- /api/agents/*         CRUD for agents + KBs
   |- /api/chat             Authenticated SSE streaming proxy - Powabase
@@ -75,6 +79,7 @@ Browser
   |- /api/sources/*        List, delete, fetch content for KB sources
   |- /api/upload           Upload file - Powabase KB
   |- /api/session-sources  Session-scoped attachments (no KB indexing)
+  |- /api/usage            Per-agent usage stats (sessions, runs, token estimates)
   +- /api/widget/*         Public (no auth) - chat, attach-file, attach-url
         |
         v
@@ -323,13 +328,15 @@ app/
 |   |- upload/            File upload to KB
 |   |- session-sources/   Session-scoped attachments
 |   +- widget/            Public chat, attach-file, attach-url
-|- login/                 Sign in / sign up page
+|- login/                 Sign in / sign up / forgot password page
+|- reset-password/        Password reset page (reads token from URL hash)
+|- usage/                 Usage dashboard
 |- widget/                Iframe chat UI
 +- page.tsx               Main SPA
 
 components/
 |- AgentsScreen.tsx       Agent card grid with create/edit/delete/search
-|- Sidebar.tsx            Conversation list, search, rename, Go Live section
+|- Sidebar.tsx            Conversation list, search, rename, export, Go Live section, usage link
 |- ChatArea.tsx           Message history with markdown rendering
 |- MessageInput.tsx       Input bar with file/URL attachment
 +- SourcesModal.tsx       KB source management modal
@@ -352,7 +359,7 @@ public/
 
 ## Known limitations
 
-- **No password reset** - there is no forgot password flow; users must sign up again with a different email if they lose access
+- **Password reset requires SMTP** - the forgot password flow is built but emails will not send until SMTP is configured in your Powabase project under Authentication settings
 - **No social login** - only email and password auth is supported
 - **Widget branding is not customizable** - the button color, position, and header title are hardcoded in `public/widget.js`
 - **25-page file limit** - files over 25 pages are rejected; split large documents before uploading
