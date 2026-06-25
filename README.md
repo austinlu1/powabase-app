@@ -1,5 +1,11 @@
 # Powabase Chat App
 
+![Next.js](https://img.shields.io/badge/Next.js-black?logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
+![AWS Amplify](https://img.shields.io/badge/AWS_Amplify-FF9900?logo=awsamplify&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
+
 A full-stack AI chat application built on [Powabase](https://powabase.ai). Users sign up, create AI agents backed by their own knowledge bases, upload documents and websites as sources, and chat with streaming AI responses. Agents can also be embedded as a floating chat widget on any external website with just two lines of HTML - no backend required on the host site.
 
 This app is designed to be a ready-to-deploy foundation. Clone it, point it at your Powabase project, and you have a fully functional multi-user AI chat platform.
@@ -343,6 +349,35 @@ public/
 - **Ownership without extra tables** - agent and source ownership is encoded in Powabase name fields rather than a separate database table, keeping the schema minimal.
 - **25-page file limit** - files exceeding 25 pages are rejected after extraction to keep context sizes manageable.
 - **50,000-token session limit** - estimated at 4 chars/token across all runs in a session. When reached, a banner prompts the user to start a new chat.
+
+## Known limitations
+
+- **No password reset** - there is no forgot password flow; users must sign up again with a different email if they lose access
+- **No social login** - only email and password auth is supported
+- **Widget branding is not customizable** - the button color, position, and header title are hardcoded in `public/widget.js`
+- **25-page file limit** - files over 25 pages are rejected; split large documents before uploading
+- **50,000-token session limit** - very long conversations will hit the cap; start a new chat to continue
+- **Widget attachments are not persisted** - files and URLs attached in the widget are session-scoped only and are lost when the page is refreshed
+
+## Troubleshooting
+
+**"TypeError: Failed to parse URL from undefined/auth/v1/..."**
+Your `POWABASE_URL` environment variable is not being read. Check that:
+- The variable is named exactly `POWABASE_URL` (uppercase, no spaces)
+- There is no trailing slash at the end of the URL
+- You redeployed after adding the variable in Amplify
+
+**"Invalid authentication credentials" on signup/login**
+Your `POWABASE_KEY` is incorrect. Go to your Powabase dashboard, click **Connect**, and copy the full secret key again. Make sure you copy the entire string with no extra spaces.
+
+**"aws: command not found" on Windows after installing the CLI**
+The installer did not add AWS to your PATH. Open **Start -> Search "Environment Variables" -> Edit the system environment variables -> Environment Variables -> System variables -> Path -> Edit** and add `C:\Program Files\Amazon\AWSCLIV2\`. Then close and reopen your terminal.
+
+**Build fails on Amplify with a TypeScript error**
+Run `npm run build` locally first to catch TypeScript errors before pushing. Fix any errors, commit, and push again — Amplify will automatically redeploy.
+
+**Amplify app not showing in the console**
+Make sure you are in the correct AWS region. The app is deployed in the region you selected during setup (e.g. `us-east-2`). Switch regions using the dropdown in the top right of the AWS console.
 
 ## Powered by
 
