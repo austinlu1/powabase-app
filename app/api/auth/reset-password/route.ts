@@ -12,13 +12,20 @@ export async function POST(req: NextRequest) {
     const { email } = await req.json();
     if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${req.nextUrl.protocol}//${req.nextUrl.host}`;
+
     const res = await fetch(`${POWABASE_URL}/auth/v1/recover`, {
       method: "POST",
       headers: {
         apikey: process.env.POWABASE_KEY!,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({
+        email,
+        options: {
+          redirect_to: `${appUrl}/reset-password`,
+        },
+      }),
     });
 
     const text = await res.text();
