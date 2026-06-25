@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Conversation, UserAgent } from "@/lib/types";
 import {
   PlusIcon,
@@ -15,6 +16,8 @@ import {
   CheckIcon,
   MagnifyingGlassIcon,
   PencilSquareIcon,
+  ArrowDownTrayIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import SourcesModal from "./SourcesModal";
 
@@ -43,6 +46,7 @@ export default function Sidebar({
   onBackToAgents,
   onLogout,
 }: SidebarProps) {
+  const router = useRouter();
   const [convOpen, setConvOpen] = useState(true);
   const [goLiveOpen, setGoLiveOpen] = useState(false);
   const [sourcesModalOpen, setSourcesModalOpen] = useState(false);
@@ -58,6 +62,78 @@ export default function Sidebar({
     setConvSearch("");
     setRenamingId(null);
   }, [activeAgent?.id]);
+
+  async function exportConversation(conv: Conversation) {
+    try {
+      const res = await fetch(`/api/sessions/runs?sessionId=${conv.sessionId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const runs: Array<{
+        input_messages: { role: string; content: string }[];
+        output_messages: { role: string; content: string }[];
+      }> = data.runs ?? [];
+      const sep = "\n\n---\n\n";
+
+      // Collect unique source names from context blocks across all runs
+      const seenSources = new Set<string>();
+      const sourceNames: string[] = [];
+      for (const run of runs) {
+        const userMsg = run.input_messages?.find((m) => m.role === "user");
+        const raw = userMsg?.content ?? "";
+        const lastSepIdx = raw.lastIndexOf(sep);
+        if (lastSepIdx === -1) continue;
+        const contextBlock = raw.slice(0, lastSepIdx);
+        // Each context entry starts with [Context: ...]
+        const contextEntries = contextBlock.split(sep);
+        for (const entry of contextEntries) {
+          const match = entry.match(/^\[Context:[^\]]+?—\s*(.+?)\]/);
+          if (match) {
+            const name = match[1].trim();
+            if (!seenSources.has(name)) {
+              seenSources.add(name);
+              sourceNames.push(name);
+            }
+          }
+        }
+      }
+
+      const lines: string[] = [`# ${conv.title}`, `Session: ${conv.sessionId}`, `Exported: ${new Date().toLocaleString()}`, ""];
+
+      if (sourceNames.length > 0) {
+        lines.push("Attached Sources");
+        for (const name of sourceNames) lines.push(`  - ${name}`);
+        lines.push("");
+        lines.push("---");
+        lines.push("");
+      }
+
+      for (const run of runs) {
+        const userMsg = run.input_messages?.find((m) => m.role === "user");
+        const assistantMsg = run.output_messages?.find((m) => m.role === "assistant");
+        if (userMsg) {
+          const raw = userMsg.content ?? "";
+          const lastSepIdx = raw.lastIndexOf(sep);
+          lines.push("You");
+          lines.push(lastSepIdx !== -1 ? raw.slice(lastSepIdx + sep.length) : raw);
+          lines.push("");
+        }
+        if (assistantMsg) {
+          lines.push("Assistant");
+          lines.push(assistantMsg.content ?? "");
+          lines.push("");
+        }
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${conv.title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently fail
+    }
+  }
 
   const filteredConversations = convSearch.trim()
     ? conversations.filter((c) =>
@@ -202,6 +278,13 @@ export default function Sidebar({
                               <PencilSquareIcon className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              onClick={(e) => { e.stopPropagation(); exportConversation(conv); }}
+                              className="p-1 hover:text-blue-400 transition-colors"
+                              title="Export"
+                            >
+                              <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                               onClick={(e) => { e.stopPropagation(); onDeleteConversation(conv); }}
                               className="p-1 hover:text-red-400 transition-colors"
                               title="Delete"
@@ -254,6 +337,17 @@ export default function Sidebar({
 
           </>
         )}
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="border-t border-white/10 shrink-0">
+        <button
+          onClick={() => router.push("/usage")}
+          className="flex items-center gap-2 w-full px-4 py-3 text-xs text-white/30 hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <ChartBarIcon className="w-4 h-4" />
+          <span>Usage Dashboard</span>
+        </button>
       </div>
     </aside>
   );
