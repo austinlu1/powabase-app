@@ -6,6 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import AgentsScreen from "@/components/AgentsScreen";
 import ChatArea from "@/components/ChatArea";
 import MessageInput, { SessionAttachment } from "@/components/MessageInput";
+import TokenRefresher from "@/components/TokenRefresher";
 import { Conversation, Message, UserAgent } from "@/lib/types";
 
 export default function Home() {
@@ -478,6 +479,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden">
+      <TokenRefresher />
 
       <Sidebar
         activeAgent={activeAgent}
