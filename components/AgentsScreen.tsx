@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { UserAgent } from "@/lib/types";
 import {
   CpuChipIcon,
@@ -9,6 +10,8 @@ import {
   PencilSquareIcon,
   XMarkIcon,
   MagnifyingGlassIcon,
+  ChartBarIcon,
+  PowerIcon,
 } from "@heroicons/react/24/outline";
 
 interface Props {
@@ -17,6 +20,8 @@ interface Props {
   onCreateAgent: (name: string, systemPrompt: string) => Promise<boolean>;
   onUpdateAgent: (agent: UserAgent, newPrompt: string) => Promise<boolean>;
   onDeleteAgent: (agent: UserAgent) => void;
+  user: { id: string; email: string; username?: string } | null;
+  onLogout: () => void;
 }
 
 export default function AgentsScreen({
@@ -25,13 +30,17 @@ export default function AgentsScreen({
   onCreateAgent,
   onUpdateAgent,
   onDeleteAgent,
+  user,
+  onLogout,
 }: Props) {
+  const router = useRouter();
   const [agentSearch, setAgentSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPrompt, setNewPrompt] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState<Record<string, string>>({});
@@ -58,22 +67,58 @@ export default function AgentsScreen({
     setEditingId(null);
   }
 
+  const initial = (user?.username ?? user?.email ?? "?").charAt(0).toUpperCase();
+
   return (
-    <div className="flex-1 overflow-y-auto bg-[#0d1117] px-8 py-10">
+    <div className="relative flex-1 overflow-y-auto bg-[#0d1117] px-8 py-10">
       <div className="max-w-5xl mx-auto">
+
+        {/* Header */}
         <div className="flex items-center justify-between gap-4 mb-1">
           <h1 className="text-2xl font-bold text-white">Agents</h1>
-          <div className="relative w-56">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
-            <input
-              type="text"
-              value={agentSearch}
-              onChange={(e) => setAgentSearch(e.target.value)}
-              placeholder="Search agents…"
-              className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-3 py-1.5 text-sm text-white placeholder-white/25 outline-none focus:border-white/25 transition-colors"
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative w-56">
+              <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+              <input
+                type="text"
+                value={agentSearch}
+                onChange={(e) => setAgentSearch(e.target.value)}
+                placeholder="Search agents…"
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-7 pr-3 py-1.5 text-sm text-white placeholder-white/25 outline-none focus:border-white/25 transition-colors"
+              />
+            </div>
+
+            {/* User avatar */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold hover:bg-blue-500 transition-colors shrink-0"
+                title={user?.email}
+              >
+                {initial}
+              </button>
+
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
+                  <div className="absolute right-0 top-10 z-20 w-48 bg-[#1f2937] border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/10">
+                      <p className="text-xs text-white/40 truncate">{user?.email}</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowUserMenu(false); onLogout(); }}
+                      className="flex items-center gap-2 w-full px-4 py-3 text-sm text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors"
+                    >
+                      <PowerIcon className="w-4 h-4" />
+                      Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
+
         <p className="text-sm text-white/40 mb-8">
           Choose an agent to start chatting, or create a new one.
         </p>
@@ -131,7 +176,6 @@ export default function AgentsScreen({
 
                 {editingId !== agent.id ? (
                   <>
-                    {/* System prompt preview */}
                     <p className="text-sm text-white/40 line-clamp-2 leading-relaxed min-h-[40px]">
                       {agent.system_prompt
                         ? agent.system_prompt
@@ -148,7 +192,6 @@ export default function AgentsScreen({
                     </div>
                   </>
                 ) : (
-                  /* Edit form */
                   <div className="space-y-2.5 mt-1" onClick={(e) => e.stopPropagation()}>
                     <p className="text-xs text-white/40">System Prompt</p>
                     <textarea
@@ -239,6 +282,15 @@ export default function AgentsScreen({
           <p className="text-center text-white/20 text-sm mt-12">No agents match &ldquo;{agentSearch}&rdquo;</p>
         )}
       </div>
+
+      {/* Usage dashboard button — bottom left */}
+      <button
+        onClick={() => router.push("/usage")}
+        className="fixed bottom-6 left-6 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-colors text-sm"
+      >
+        <ChartBarIcon className="w-4 h-4" />
+        Usage Dashboard
+      </button>
     </div>
   );
 }

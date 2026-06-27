@@ -25,7 +25,7 @@ interface SidebarProps {
   activeAgent: UserAgent | null;
   conversations: Conversation[];
   activeSessionId: string | null;
-  user: { id: string; email: string } | null;
+  user: { id: string; email: string; username?: string } | null;
   onNewChat: () => void;
   onSelectConversation: (conv: Conversation) => void;
   onDeleteConversation: (conv: Conversation) => void;

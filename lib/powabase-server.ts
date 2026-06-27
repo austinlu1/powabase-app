@@ -178,7 +178,7 @@ const noRefresh: ApplyRefresh = (res) => res;
 
 export async function getUserFromCookie(
   req: import("next/server").NextRequest
-): Promise<{ user: { id: string; email: string } | null; applyRefresh: ApplyRefresh }> {
+): Promise<{ user: { id: string; email: string; username?: string } | null; applyRefresh: ApplyRefresh }> {
   const token = req.cookies.get("pb_token")?.value;
   const refreshToken = req.cookies.get("pb_refresh")?.value;
   if (!token) return { user: null, applyRefresh: noRefresh };
@@ -198,7 +198,7 @@ export async function getUserFromCookie(
       if (refreshToken) response.cookies.set("pb_refresh", refreshToken, COOKIE_OPTS);
       return response;
     };
-    return { user: { id: user.id, email: user.email }, applyRefresh };
+    return { user: { id: user.id, email: user.email, username: user.user_metadata?.username }, applyRefresh };
   }
 
   // Token expired — attempt refresh
@@ -220,7 +220,7 @@ export async function getUserFromCookie(
       return response;
     };
 
-    return { user: { id: data.user.id, email: data.user.email }, applyRefresh };
+    return { user: { id: data.user.id, email: data.user.email, username: data.user.user_metadata?.username }, applyRefresh };
   }
 
   return { user: null, applyRefresh: noRefresh };

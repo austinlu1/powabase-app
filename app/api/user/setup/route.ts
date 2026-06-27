@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         model: "gpt-4o-mini",
       });
       await pbPost(`/api/agents/${agent.id}/knowledge-bases`, { knowledge_base_id: kb.id });
-      return applyRefresh(NextResponse.json({ agentId: agent.id, kbId: kb.id, user }));
+        return applyRefresh(NextResponse.json({ agentId: agent.id, kbId: kb.id, user }));
     }
 
     // Verify every agent's KB still exists — repair any that were deleted

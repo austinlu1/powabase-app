@@ -12,7 +12,7 @@ import { Conversation, Message, UserAgent } from "@/lib/types";
 export default function Home() {
   const router = useRouter();
 
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; username?: string } | null>(null);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [activeAgent, setActiveAgent] = useState<UserAgent | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -481,18 +481,20 @@ export default function Home() {
     <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden">
       <TokenRefresher />
 
-      <Sidebar
-        activeAgent={activeAgent}
-        conversations={conversations}
-        activeSessionId={activeSessionId}
-        user={user}
-        onNewChat={newChat}
-        onSelectConversation={selectConversation}
-        onDeleteConversation={deleteConversation}
-        onRenameConversation={renameConversation}
-        onBackToAgents={backToAgents}
-        onLogout={logout}
-      />
+      {activeAgent && (
+        <Sidebar
+          activeAgent={activeAgent}
+          conversations={conversations}
+          activeSessionId={activeSessionId}
+          user={user}
+          onNewChat={newChat}
+          onSelectConversation={selectConversation}
+          onDeleteConversation={deleteConversation}
+          onRenameConversation={renameConversation}
+          onBackToAgents={backToAgents}
+          onLogout={logout}
+        />
+      )}
 
       <main className="flex flex-col flex-1 overflow-hidden">
         {!activeAgent ? (
@@ -502,6 +504,8 @@ export default function Home() {
             onCreateAgent={createAgent}
             onUpdateAgent={updateAgent}
             onDeleteAgent={deleteAgent}
+            user={user}
+            onLogout={logout}
           />
         ) : (
           <>
