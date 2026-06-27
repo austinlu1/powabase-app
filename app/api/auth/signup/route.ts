@@ -9,7 +9,7 @@ const ANON_KEY = process.env.POWABASE_KEY!;
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const { email, password, username } = await req.json();
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${POWABASE_URL}/auth/v1/signup`, {
       method: "POST",
       headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        options: { data: { username: username ?? "" } },
+      }),
     });
 
     const data = await res.json();
