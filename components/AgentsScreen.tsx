@@ -74,8 +74,8 @@ export default function AgentsScreen({
       <div className="max-w-5xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 mb-1">
-          <h1 className="text-2xl font-bold text-white">Agents</h1>
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <h1 className="text-4xl font-bold text-white">Agents</h1>
           <div className="flex items-center gap-3">
             <div className="relative w-56">
               <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
@@ -119,9 +119,52 @@ export default function AgentsScreen({
           </div>
         </div>
 
-        <p className="text-sm text-white/40 mb-8">
-          Choose an agent to start chatting, or create a new one.
-        </p>
+        {/* New Agent button */}
+        {!showCreate ? (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 mb-8 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+          >
+            <PlusIcon className="w-4 h-4" />
+            New Agent
+          </button>
+        ) : (
+          <div className="mb-8 rounded-2xl border border-blue-500/40 bg-[#1f2937] p-5 space-y-3 max-w-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">New Agent</p>
+              <button
+                onClick={() => { setShowCreate(false); setCreateError(""); setNewName(""); setNewPrompt(""); }}
+                className="text-white/30 hover:text-white transition-colors"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+              placeholder="Agent name"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-blue-500"
+            />
+            <textarea
+              value={newPrompt}
+              onChange={(e) => setNewPrompt(e.target.value)}
+              placeholder="System prompt (optional)"
+              rows={3}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-blue-500 resize-none"
+            />
+            {createError && <p className="text-red-400 text-xs">{createError}</p>}
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
+            >
+              {creating ? "Creating…" : "Create Agent"}
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
@@ -223,54 +266,6 @@ export default function AgentsScreen({
             </div>
           ))}
 
-          {/* New Agent card */}
-          {!showCreate ? (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="rounded-2xl border-2 border-dashed border-white/10 hover:border-blue-500/40 hover:bg-blue-600/5 transition-all p-5 flex flex-col items-center justify-center gap-3 min-h-[160px] text-white/40 hover:text-white/70 cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center">
-                <PlusIcon className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-medium">New Agent</span>
-            </button>
-          ) : (
-            <div className="rounded-2xl border border-blue-500/40 bg-[#1f2937] p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-white">New Agent</p>
-                <button
-                  onClick={() => { setShowCreate(false); setCreateError(""); setNewName(""); setNewPrompt(""); }}
-                  className="text-white/30 hover:text-white transition-colors"
-                >
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-              <input
-                autoFocus
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-                placeholder="Agent name"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-blue-500"
-              />
-              <textarea
-                value={newPrompt}
-                onChange={(e) => setNewPrompt(e.target.value)}
-                placeholder="System prompt (optional)"
-                rows={3}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 outline-none focus:border-blue-500 resize-none"
-              />
-              {createError && <p className="text-red-400 text-xs">{createError}</p>}
-              <button
-                onClick={handleCreate}
-                disabled={creating}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
-              >
-                {creating ? "Creating…" : "Create Agent"}
-              </button>
-            </div>
-          )}
         </div>
 
         {agents.length === 0 && !showCreate && (
