@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { UserAgent } from "@/lib/types";
-import { AgentPrefs, AVATAR_COLORS, getAgentLastActive, saveAgentPrefs } from "@/lib/agentPrefs";
+import { AgentPrefs, AVATAR_COLORS, getAgentLastActive, saveAgentPrefs, stripKnowledgeInstruction } from "@/lib/agentPrefs";
 import {
   PlusIcon,
   XMarkIcon,
@@ -35,8 +35,6 @@ interface Props {
   onDeleteAgent?: (agent: UserAgent) => void;
   onDuplicateAgent?: (name: string, systemPrompt: string) => Promise<boolean>;
   onRenameAgent?: (agent: UserAgent, newName: string) => Promise<boolean>;
-  user?: { id: string; email: string; username?: string } | null;
-  onLogout?: () => void;
 }
 
 type SortOption = "custom" | "az" | "za" | "most-recent" | "least-recent" | "newest" | "oldest";
@@ -942,7 +940,7 @@ export default function AgentsScreen({
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     setOpenMenuId(null);
-                                    await onDuplicateAgent(`${agent.name} (Copy)`, agent.system_prompt ?? "");
+                                    await onDuplicateAgent(`${agent.name} (Copy)`, stripKnowledgeInstruction(agent.system_prompt ?? ""));
                                   }}
                                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/8 transition-colors text-left"
                                 >

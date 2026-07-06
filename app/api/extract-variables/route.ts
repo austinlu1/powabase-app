@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pbGet, pbPost, pbDelete } from "@/lib/powabase-server";
+import { getUserFromCookie, pbGet, pbPost, pbDelete, listAgentsWithDescription, parseAgentName } from "@/lib/powabase-server";
 import { AgentVariable } from "@/lib/agentVariables";
 
 export async function POST(req: NextRequest) {
   try {
+    const { user } = await getUserFromCookie(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { agentId, sessionId, variables }: {
       agentId: string;
       sessionId: string;
@@ -13,6 +16,11 @@ export async function POST(req: NextRequest) {
     if (!agentId || !sessionId || !variables?.length) {
       return NextResponse.json({ error: "agentId, sessionId, and variables required" }, { status: 400 });
     }
+
+    // Verify agent belongs to this user
+    const userAgents = await listAgentsWithDescription();
+    const owned = userAgents.some(a => a.id === agentId && parseAgentName(a.name)?.uid === user.id);
+    if (!owned) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
     // Fetch session runs to build a readable transcript
     const data = await pbGet(`/api/sessions/${sessionId}/runs`);

@@ -10,6 +10,12 @@ A full-stack AI chat platform built on [Powabase](https://powabase.ai). Users si
 
 Clone it, point it at your Powabase project, and you have a working multi-user AI chat platform.
 
+![Agents screen showing a grid of six agents with public/private visibility badges, UUID, and display name on each card](screenshots/agents-screen.png)
+*Your Agents screen - create, search, reorder, and manage multiple agents. Each card shows the agent's visibility status, UUID, and display name. Hover a card to access the three-dot menu for rename, duplicate, share, and delete.*
+
+![Chat screen with the agent sidebar expanded, showing Sessions, Sources, Collected Data, Customizations, Go Live, and Agent Settings navigation](screenshots/chat-screen.png)
+*Chat screen - the pinnable sidebar gives access to sessions, sources, customizations, and Go Live. The agent's public/private status is shown in the header.*
+
 ## What it does
 
 **For logged-in users:**

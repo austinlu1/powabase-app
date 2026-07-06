@@ -324,7 +324,7 @@ export default function Home() {
 
   async function deleteConversation(conv: Conversation) {
     try {
-      await fetch(`/api/sessions?sessionId=${conv.sessionId}`, { method: "DELETE" });
+      await fetch(`/api/sessions?sessionId=${conv.sessionId}&agentId=${conv.agentId}`, { method: "DELETE" });
       localStorage.removeItem(`conv_title_${conv.sessionId}`);
       deleteSessionCollectedData(conv.sessionId);
       setConversations((prev) => prev.filter((c) => c.sessionId !== conv.sessionId));
@@ -589,8 +589,6 @@ export default function Home() {
             onDeleteAgent={deleteAgent}
             onDuplicateAgent={duplicateAgent}
             onRenameAgent={(agent, newName) => updateAgent(agent, { display_name: newName })}
-            user={user}
-            onLogout={logout}
           />
         ) : activePanel === "sessions" ? (
           <SessionsPanel
