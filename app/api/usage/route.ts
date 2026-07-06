@@ -3,6 +3,8 @@
  * Returns per-agent usage: session count, run count, estimated tokens.
  * Estimation: ~4 chars per token (rough heuristic).
  */
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromCookie, pbGet, listAgentsWithDescription, parseAgentName } from "@/lib/powabase-server";
 

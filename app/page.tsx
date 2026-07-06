@@ -7,7 +7,24 @@ import AgentsScreen from "@/components/AgentsScreen";
 import ChatArea from "@/components/ChatArea";
 import MessageInput, { SessionAttachment } from "@/components/MessageInput";
 import TokenRefresher from "@/components/TokenRefresher";
+import SourcesPanel from "@/components/SourcesPanel";
+import SessionsPanel from "@/components/SessionsPanel";
+import GoLivePanel from "@/components/GoLivePanel";
+import AgentSettingsPanel from "@/components/AgentSettingsPanel";
+import CustomizationsPanel from "@/components/CustomizationsPanel";
+import CollectedDataPanel from "@/components/CollectedDataPanel";
 import { Conversation, Message, UserAgent } from "@/lib/types";
+import { getAgentPrefs, saveAgentPrefs, AgentPrefs, touchAgentLastActive, AVATAR_COLORS } from "@/lib/agentPrefs";
+import {
+  getAgentVariables,
+  getSessionCollectedData,
+  saveSessionCollectedData,
+  deleteSessionCollectedData,
+  CollectedData,
+} from "@/lib/agentVariables";
+
+type Panel = "sessions" | "sources" | "golive" | "settings" | "customizations" | "collected" | null;
+
 
 export default function Home() {
   const router = useRouter();
@@ -22,6 +39,9 @@ export default function Home() {
   const [streamingContent, setStreamingContent] = useState("");
   const [sessionLimitReached, setSessionLimitReached] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activePanel, setActivePanel] = useState<Panel>(null);
+  const [agentPrefs, setAgentPrefs] = useState<Record<string, AgentPrefs>>({});
+  const [collectedData, setCollectedData] = useState<Record<string, CollectedData>>({});
   // Session-scoped attachments — extracted text lives here, not in the KB
   const [attachmentData, setAttachmentData] = useState<(SessionAttachment & { extractedText: string; persisted: boolean })[]>([]);
   const sessionAttachments: SessionAttachment[] = attachmentData.map(
@@ -49,6 +69,14 @@ export default function Home() {
 
       convs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setConversations(convs);
+
+      // Load any previously collected variable data for these sessions
+      const loaded: Record<string, CollectedData> = {};
+      for (const c of convs) {
+        const data = getSessionCollectedData(c.sessionId);
+        if (data) loaded[c.sessionId] = data;
+      }
+      setCollectedData(loaded);
     } catch (e) {
       console.error("Failed to load sessions:", e);
     }
@@ -62,6 +90,9 @@ export default function Home() {
       const data = await res.json();
       const list: UserAgent[] = data.agents ?? [];
       setAgents(list);
+      const prefs: Record<string, AgentPrefs> = {};
+      for (const a of list) prefs[a.id] = getAgentPrefs(a.id);
+      setAgentPrefs(prefs);
       return list;
     } catch (e) {
       console.error("Failed to load agents:", e);
@@ -108,49 +139,55 @@ export default function Home() {
     setStreamingContent("");
     setAttachmentData([]);
     setSessionLimitReached(false);
+    setActivePanel(null);
+    setCollectedData({});
     await loadConversations(agent.id);
   }
 
   // ── Create new agent ──────────────────────────────────────────────────────
 
-  async function createAgent(name: string, systemPrompt: string): Promise<boolean> {
+  async function createAgent(name: string, systemPrompt: string, welcomeMessage?: string): Promise<string | null> {
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, system_prompt: systemPrompt }),
       });
-      if (res.status === 401) { router.replace("/login?reason=session_expired"); return false; }
-      if (!res.ok) return false;
+      if (res.status === 401) { router.replace("/login?reason=session_expired"); return null; }
+      if (!res.ok) return null;
       const newAgent: UserAgent = await res.json();
-      const updated = [...agents, newAgent];
-      setAgents(updated);
-      await switchAgent(newAgent);
-      return true;
+      setAgents((prev) => [...prev, newAgent]);
+      if (welcomeMessage?.trim()) {
+        saveAgentPrefs(newAgent.id, { welcomeMessage: welcomeMessage.trim() });
+      }
+      const prefs = getAgentPrefs(newAgent.id);
+      setAgentPrefs((prev) => ({ ...prev, [newAgent.id]: prefs }));
+      // Don't switch immediately — the create flow has a step 2 that needs to
+      // stay on AgentsScreen. handleComplete in AgentsScreen calls onSelectAgent.
+      return newAgent.id;
     } catch {
-      return false;
+      return null;
     }
   }
 
-  // ── Update agent system prompt ────────────────────────────────────────────
+  // ── Update agent (prompt and/or display name) ─────────────────────────────
 
-  async function updateAgent(agent: UserAgent, newPrompt: string): Promise<boolean> {
+  async function updateAgent(agent: UserAgent, updates: { system_prompt?: string; display_name?: string; knowledge_mode?: "ai" | "kb" }): Promise<boolean> {
     try {
       const res = await fetch(`/api/agents/${agent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ system_prompt: newPrompt }),
+        body: JSON.stringify(updates),
       });
       if (res.status === 401) { router.replace("/login?reason=session_expired"); return false; }
       if (!res.ok) return false;
       const updated = await res.json();
       setAgents((prev) =>
-        prev.map((a) => a.id === agent.id ? { ...a, system_prompt: updated.system_prompt } : a)
+        prev.map((a) => a.id === agent.id ? { ...a, system_prompt: updated.system_prompt ?? a.system_prompt, name: updated.name ?? a.name } : a)
       );
       if (activeAgent?.id === agent.id) {
-        setActiveAgent((prev) => prev ? { ...prev, system_prompt: updated.system_prompt } : prev);
+        setActiveAgent((prev) => prev ? { ...prev, system_prompt: updated.system_prompt ?? prev.system_prompt, name: updated.name ?? prev.name } : prev);
       }
-      newChat();
       return true;
     } catch {
       return false;
@@ -161,7 +198,8 @@ export default function Home() {
 
   async function deleteAgent(agent: UserAgent) {
     try {
-      await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
+      if (!res.ok) { console.error("Delete agent failed:", await res.text()); return; }
       const updated = agents.filter((a) => a.id !== agent.id);
       setAgents(updated);
 
@@ -176,6 +214,12 @@ export default function Home() {
     } catch (e) {
       console.error("Delete agent error:", e);
     }
+  }
+
+  // ── Duplicate agent ───────────────────────────────────────────────────────
+
+  async function duplicateAgent(name: string, systemPrompt: string): Promise<boolean> {
+    return (await createAgent(name, systemPrompt)) !== null;
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────
@@ -193,6 +237,7 @@ export default function Home() {
     setStreamingContent("");
     setAttachmentData([]);
     setSessionLimitReached(false);
+    setActivePanel(null);
 
     // Restore session attachments from DB
     try {
@@ -247,6 +292,7 @@ export default function Home() {
     setStreamingContent("");
     setAttachmentData([]);
     setSessionLimitReached(false);
+    setActivePanel(null);
   }
 
   // ── Back to agents screen ─────────────────────────────────────────────────
@@ -259,6 +305,8 @@ export default function Home() {
     setAttachmentData([]);
     setSessionLimitReached(false);
     setConversations([]);
+    setActivePanel(null);
+    setCollectedData({});
   }
 
   // ── Rename conversation ───────────────────────────────────────────────────
@@ -278,11 +326,36 @@ export default function Home() {
     try {
       await fetch(`/api/sessions?sessionId=${conv.sessionId}`, { method: "DELETE" });
       localStorage.removeItem(`conv_title_${conv.sessionId}`);
+      deleteSessionCollectedData(conv.sessionId);
       setConversations((prev) => prev.filter((c) => c.sessionId !== conv.sessionId));
+      setCollectedData((prev) => {
+        const next = { ...prev };
+        delete next[conv.sessionId];
+        return next;
+      });
       if (activeSessionId === conv.sessionId) newChat();
     } catch (e) {
       console.error("Delete error:", e);
     }
+  }
+
+  // ── Extract variables from a session in the background ────────────────────
+
+  async function triggerExtraction(sessionId: string, agentId: string) {
+    const vars = getAgentVariables(agentId);
+    if (!vars.length) return;
+    try {
+      const res = await fetch("/api/extract-variables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId, sessionId, variables: vars }),
+      });
+      if (!res.ok) return;
+      const { data } = await res.json();
+      if (!data || typeof data !== "object") return;
+      saveSessionCollectedData(sessionId, data as CollectedData);
+      setCollectedData((prev) => ({ ...prev, [sessionId]: data as CollectedData }));
+    } catch { /* best effort — never block the chat */ }
   }
 
   // ── Session attachments ───────────────────────────────────────────────────
@@ -382,6 +455,8 @@ export default function Home() {
     setStreamingContent("");
 
     try {
+      const tempMap = { precise: 0.2, balanced: 0.7, creative: 1.0 };
+      const temperaturePref = agentPrefs[activeAgent.id]?.temperature ?? "balanced";
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -389,6 +464,7 @@ export default function Home() {
           agentId: activeAgent.id,
           message: messageWithContext,
           sessionId: activeSessionId ?? undefined,
+          temperature: tempMap[temperaturePref],
         }),
       });
 
@@ -445,12 +521,24 @@ export default function Home() {
 
       setMessages((prev) => [...prev, { role: "assistant", content: fullContent }]);
 
+      // Stamp the agent as active right now so the agents screen shows correct last-active time
+      touchAgentLastActive(activeAgent.id);
+
+      // Trigger variable extraction in background — doesn't block the UI
+      const extractSessionId = newSessionId ?? activeSessionId;
+      if (extractSessionId && activeAgent) {
+        triggerExtraction(extractSessionId, activeAgent.id);
+      }
+
       if (newSessionId && newSessionId !== activeSessionId) {
         setActiveSessionId(newSessionId);
+        const words = text.trim().split(/\s+/);
+        const titleWords = words.slice(0, 7);
+        const title = titleWords.join(" ") + (words.length > 7 ? "…" : "");
         const newConv: Conversation = {
           sessionId: newSessionId,
           agentId: activeAgent.id,
-          title: text.slice(0, 40) + (text.length > 40 ? "…" : ""),
+          title: title.charAt(0).toUpperCase() + title.slice(1),
           createdAt: new Date().toISOString(),
         };
         setConversations((prev) => [newConv, ...prev]);
@@ -471,28 +559,23 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0d1117] text-white/50 text-sm">
+      <div className="flex flex-1 items-center justify-center bg-[#1a1a1a] text-white/50 text-sm">
         Connecting to Powabase…
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden">
+    <div className="flex flex-1 bg-[#1a1a1a] text-white overflow-hidden">
       <TokenRefresher />
 
       {activeAgent && (
         <Sidebar
           activeAgent={activeAgent}
-          conversations={conversations}
-          activeSessionId={activeSessionId}
-          user={user}
-          onNewChat={newChat}
-          onSelectConversation={selectConversation}
-          onDeleteConversation={deleteConversation}
-          onRenameConversation={renameConversation}
+          activePanel={activePanel}
+          onSetPanel={setActivePanel}
           onBackToAgents={backToAgents}
-          onLogout={logout}
+          agentPrefs={agentPrefs[activeAgent.id]}
         />
       )}
 
@@ -500,19 +583,94 @@ export default function Home() {
         {!activeAgent ? (
           <AgentsScreen
             agents={agents}
+            agentPrefs={agentPrefs}
             onSelectAgent={switchAgent}
             onCreateAgent={createAgent}
-            onUpdateAgent={updateAgent}
             onDeleteAgent={deleteAgent}
+            onDuplicateAgent={duplicateAgent}
+            onRenameAgent={(agent, newName) => updateAgent(agent, { display_name: newName })}
             user={user}
             onLogout={logout}
           />
+        ) : activePanel === "sessions" ? (
+          <SessionsPanel
+            conversations={conversations}
+            activeSessionId={activeSessionId}
+            onNewChat={newChat}
+            onSelectConversation={selectConversation}
+            onDeleteConversation={deleteConversation}
+            onRenameConversation={renameConversation}
+          />
+        ) : activePanel === "collected" ? (
+          <CollectedDataPanel
+            conversations={conversations}
+            collectedData={collectedData}
+          />
+        ) : activePanel === "sources" ? (
+          <SourcesPanel
+            agentId={activeAgent.id}
+            agentName={activeAgent.name}
+            onClose={() => setActivePanel(null)}
+          />
+        ) : activePanel === "customizations" ? (
+          <CustomizationsPanel agentId={activeAgent.id} />
+        ) : activePanel === "golive" ? (
+          <GoLivePanel
+            agentId={activeAgent.id}
+            agentName={activeAgent.name}
+            agentPrefs={agentPrefs[activeAgent.id]}
+            onOpenSettings={() => setActivePanel("settings")}
+          />
+        ) : activePanel === "settings" ? (
+          <AgentSettingsPanel
+            agent={activeAgent}
+            onUpdateAgent={updateAgent}
+            onDeleteAgent={deleteAgent}
+            onDuplicateAgent={duplicateAgent}
+            onClose={() => setActivePanel(null)}
+            onBackToAgents={backToAgents}
+            onPrefsChange={(id, prefs) => setAgentPrefs((prev) => ({ ...prev, [id]: prefs }))}
+            fullPage
+          />
         ) : (
-          <>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Chat header bar */}
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-white/8 bg-[#1c1c1c] shrink-0">
+              {(() => {
+                const prefs = agentPrefs[activeAgent.id];
+                const color = prefs?.avatarColor ?? AVATAR_COLORS[0];
+                const emoji = prefs?.avatarEmoji;
+                const isPublic = prefs?.visibility === "public";
+                return (
+                  <>
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ backgroundColor: `${color}22`, border: `1px solid ${color}55` }}
+                    >
+                      {emoji ? (
+                        <span>{emoji}</span>
+                      ) : (
+                        <span style={{ color }}>{activeAgent.name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span className="font-medium text-sm text-white">{agentPrefs[activeAgent.id]?.displayName || activeAgent.name}</span>
+                    {isPublic ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">Public</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/40">Private</span>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
             <ChatArea
               messages={messages}
               streaming={streaming}
               streamingContent={streamingContent}
+              welcomeMessage={activeSessionId ? undefined : agentPrefs[activeAgent.id]?.welcomeMessage}
+              agent={activeAgent}
+              agentPrefs={agentPrefs[activeAgent.id]}
+              onSendPrompt={sendMessage}
             />
             <MessageInput
               onSend={sendMessage}
@@ -524,7 +682,7 @@ export default function Home() {
               onRemoveAttachment={removeAttachment}
               limitReached={sessionLimitReached}
             />
-          </>
+          </div>
         )}
       </main>
     </div>

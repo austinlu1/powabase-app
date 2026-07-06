@@ -52,7 +52,7 @@ export default function FileUpload({ agentId, onClose }: FileUploadProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1f2937] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+      <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-white font-semibold text-lg">Upload Document</h2>

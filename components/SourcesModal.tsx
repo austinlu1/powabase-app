@@ -215,10 +215,10 @@ export default function SourcesModal({ agentId, agentName, onClose }: SourcesMod
     : importMsg ? "text-emerald-400" : "text-white/30";
 
   return (
-    <div className="fixed top-0 bottom-0 left-72 right-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-[#111827] border border-white/10 rounded-2xl w-full max-w-5xl flex flex-col shadow-2xl"
-        style={{ height: "82vh" }}
+        className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-5xl flex flex-col shadow-2xl"
+        style={{ height: "90vh" }}
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -314,7 +314,7 @@ export default function SourcesModal({ agentId, agentName, onClose }: SourcesMod
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#111827] border-b border-white/10">
+              <thead className="sticky top-0 bg-[#141414] border-b border-white/10">
                 <tr>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider">Name</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-white/40 uppercase tracking-wider w-28">Type</th>

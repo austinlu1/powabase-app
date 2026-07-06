@@ -207,7 +207,7 @@ export function FileViewerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-[#1f2937] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
 
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">

@@ -2,7 +2,10 @@
  * GET /api/sources?agentId={id}
  * Returns sources for the authenticated user, filtered by agent KB.
  * Source name format: "{userId}:{kbId}:{uuid}:{filename}"
- * For sources shared across agents: "{userId}:{kbA}+{kbB}:{uuid}:{filename}"
+ * For sources shared across agents/users: "{anyUserId}:{kbA}+{kbB}:{uuid}:{filename}"
+ *
+ * Ownership is determined by kbId membership (not userId prefix) so that cross-user
+ * content-dedup'd sources still appear correctly for each user.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromCookie, pbGet, listAgentsWithDescription, parseAgentName } from "@/lib/powabase-server";
@@ -13,18 +16,9 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const agentId = req.nextUrl.searchParams.get("agentId");
+    if (!agentId) return NextResponse.json({ sources: [] });
 
-    const data = await pbGet("/api/sources");
-    const allSources: { id: string; name?: string; extraction_status?: string; created_at?: string }[] = data.sources ?? [];
-
-    if (!agentId) {
-      const sources = allSources
-        .filter((s) => s.name?.startsWith(`${user.id}:`))
-        .map((s) => ({ ...s, name: s.name!.split(":").slice(3).join(":") }));
-      return applyRefresh(NextResponse.json({ sources }));
-    }
-
-    // Look up the agent's kbId and verify ownership
+    // Verify the agent belongs to this user and get its kbId
     const agents = await listAgentsWithDescription();
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return applyRefresh(NextResponse.json({ sources: [] }));
@@ -33,16 +27,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
     const kbId = meta.kid;
-    const userSources = allSources.filter((s) => s.name?.startsWith(`${user.id}:`));
 
-    // Filter: owned by this user AND kbId appears in the "+" separated kbIds field
-    // Name format: "{userId}:{kbA}+{kbB}:{uuid}:{filename}"
-    const sources = userSources
+    const data = await pbGet("/api/sources");
+    const allSources: { id: string; name?: string; extraction_status?: string; created_at?: string }[] = data.sources ?? [];
+
+    // Filter: this user's kbId appears in position [1] of the name (supports "+" joined kbIds)
+    const sources = allSources
       .filter((s) => {
-        const kbField = s.name!.split(":")[1] ?? "";
-        return kbField.split("+").includes(kbId);
+        if (!s.name) return false;
+        const parts = s.name.split(":");
+        if (parts.length < 4) return false;
+        return parts[1].split("+").includes(kbId);
       })
-      .map((s) => ({ ...s, name: s.name!.split(":").slice(3).join(":") }));
+      .map((s) => {
+        const parts = s.name!.split(":");
+        // New format: {userId}:{kbId}:{uuid}:sz={bytes}:{filename}
+        // Old format: {userId}:{kbId}:{uuid}:{filename}
+        let file_size = 0;
+        let displayName: string;
+        if (parts[3]?.startsWith("sz=")) {
+          file_size = parseInt(parts[3].slice(3), 10) || 0;
+          displayName = parts.slice(4).join(":");
+        } else {
+          displayName = parts.slice(3).join(":");
+        }
+        return { ...s, name: displayName, file_size };
+      });
 
     return applyRefresh(NextResponse.json({ sources }));
   } catch (e: unknown) {

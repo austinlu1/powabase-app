@@ -108,7 +108,7 @@ export default function MessageInput({
   const canAttach = !!(onAttachFile || onAttachUrl);
 
   return (
-    <div className="border-t border-white/10 bg-[#111827] px-4 py-4">
+    <div className="border-t border-white/10 bg-[#141414] px-4 py-4">
       <div className="max-w-3xl mx-auto space-y-2">
 
         {/* Session limit banner */}
@@ -155,7 +155,7 @@ export default function MessageInput({
         )}
 
         {/* Input row */}
-        <div className="flex items-end gap-3 bg-[#1f2937] rounded-2xl px-4 py-3 border border-white/10 focus-within:border-white/30 transition-colors">
+        <div className="flex items-end gap-3 bg-[#1e1e1e] rounded-2xl px-4 py-3 border border-white/10 focus-within:border-white/30 transition-colors">
 
           {/* + button with popover */}
           {canAttach && (
@@ -163,7 +163,7 @@ export default function MessageInput({
               <button
                 onClick={() => { setPopoverOpen(!popoverOpen); setUrlMode(false); setUrlInput(""); }}
                 disabled={attaching}
-                className="text-white/30 hover:text-white/70 transition-colors disabled:opacity-40"
+                className="text-white hover:text-white/70 transition-colors disabled:opacity-40"
                 title="Attach context"
               >
                 {attaching
@@ -173,7 +173,7 @@ export default function MessageInput({
               </button>
 
               {popoverOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-52 bg-[#1f2937] border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
+                <div className="absolute bottom-full left-0 mb-2 w-52 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
                   {!urlMode ? (
                     <>
                       <p className="px-3 pt-2.5 pb-1 text-xs text-white/30 font-medium uppercase tracking-wider">
@@ -249,7 +249,7 @@ export default function MessageInput({
             disabled={isDisabled}
             placeholder={limitReached ? "Session limit reached — start a new chat" : placeholder ?? (disabled ? "Waiting for response…" : "Message… (Shift+Enter for newline)")}
             rows={1}
-            className="flex-1 resize-none bg-transparent text-white placeholder-white/30 text-sm outline-none leading-relaxed max-h-[200px] disabled:opacity-50"
+            className="flex-1 resize-none bg-transparent text-white placeholder-white/50 text-sm outline-none leading-relaxed max-h-[200px] disabled:opacity-50"
           />
 
           <button

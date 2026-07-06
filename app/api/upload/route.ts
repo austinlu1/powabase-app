@@ -52,11 +52,11 @@ export async function POST(req: NextRequest) {
     const kbId: string = meta.kid;
     const agentId: string = userAgent.id;
 
-    // 3. Upload source — name format: "{userId}:{kbId}:{uuid}:{filename}"
-    //    userId = owner filter, kbId = KB attribution, uuid = uniqueness, filename = display
+    // 3. Upload source — name format: "{userId}:{kbId}:{uuid}:sz={bytes}:{filename}"
+    //    sz= segment encodes file size so we can display storage usage without a separate API call
     const uploadForm = new FormData();
     uploadForm.append("file", file);
-    uploadForm.append("name", `${user.id}:${kbId}:${crypto.randomUUID()}:${file.name}`);
+    uploadForm.append("name", `${user.id}:${kbId}:${crypto.randomUUID()}:sz=${file.size}:${file.name}`);
     let source: { id: string; extraction_status?: string };
     try {
       source = await pbPostForm("/api/sources/upload", uploadForm);
@@ -69,12 +69,21 @@ export async function POST(req: NextRequest) {
           (err.body?.id ?? err.body?.source_id ?? errSource?.id ?? null) as string | null;
 
         if (!existingId) {
-          // Fall back: search all sources for one matching this filename
+          // Fall back: search all sources for a filename match — content dedup is global
+          // across all accounts so we can't filter by userId here
           const allSources = await pbGet("/api/sources");
-          const match = (allSources.sources ?? []).find(
-            (s: { id: string; name?: string }) =>
-              s.name?.startsWith(`${user.id}:`) && s.name?.endsWith(`:${file.name}`)
+          const allSourcesList: { id: string; name?: string }[] = allSources.sources ?? [];
+
+          // Prefer a source owned by this user
+          const ownedMatch = allSourcesList.find(
+            (s) => s.name?.startsWith(`${user.id}:`) && s.name?.endsWith(`:${file.name}`)
           );
+          // Fall back to any source with matching filename (different account, same content)
+          const anyMatch = allSourcesList.find(
+            (s) => s.name?.endsWith(`:${file.name}`)
+          );
+          const match = ownedMatch ?? anyMatch ?? null;
+
           if (!match) {
             return NextResponse.json({ error: "duplicate", message: "This document has already been uploaded to this agent." }, { status: 409 });
           }

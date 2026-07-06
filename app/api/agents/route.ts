@@ -8,8 +8,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromCookie, pbGet, pbPost, listAgentsWithDescription, parseAgentName, buildAgentName } from "@/lib/powabase-server";
 
+import { getKnowledgeInstruction } from "@/lib/agentPrefs";
+
 const DEFAULT_SYSTEM_PROMPT =
-  "You are a helpful AI assistant. When the user provides documents, use your knowledge_search tool to find relevant information before answering. Be concise, accurate, and friendly.";
+  "You are a helpful AI assistant. Be concise, accurate, and friendly.";
 
 export async function GET(req: NextRequest) {
   const { user, applyRefresh } = await getUserFromCookie(req);
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { name, system_prompt } = await req.json();
+    const { name, system_prompt, knowledge_mode } = await req.json();
     if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
     // 1. Create a dedicated KB for this agent
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
     // 2. Create agent — name encodes "{userId}__{kbId}__{displayName}" for ownership tracking
     const agent = await pbPost("/api/agents", {
       name: buildAgentName(user.id, kb.id, name),
-      system_prompt: system_prompt || DEFAULT_SYSTEM_PROMPT,
+      system_prompt: (system_prompt || DEFAULT_SYSTEM_PROMPT) + getKnowledgeInstruction(knowledge_mode),
       model: "gpt-4o-mini",
     });
 

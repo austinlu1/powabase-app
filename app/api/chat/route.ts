@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const { agentId, message, sessionId } = await req.json();
+  const { agentId, message, sessionId, temperature } = await req.json();
 
   if (!agentId || !message) {
     return new Response(JSON.stringify({ error: "agentId and message required" }), { status: 400 });
@@ -68,8 +68,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const body: Record<string, string> = { message };
+  const body: Record<string, string | number> = { message };
   if (sessionId) body.session_id = sessionId;
+  if (temperature !== undefined) body.temperature = temperature;
 
   // Open SSE stream to Powabase
   const upstream = await fetch(`${POWABASE_URL}/api/agents/${agentId}/run/stream`, {

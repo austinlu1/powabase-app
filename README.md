@@ -6,96 +6,118 @@
 ![AWS Amplify](https://img.shields.io/badge/AWS_Amplify-FF9900?logo=awsamplify&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-A full-stack AI chat application built on [Powabase](https://powabase.ai). Users sign up, create AI agents backed by their own knowledge bases, upload documents and websites as sources, and chat with streaming AI responses. Agents can also be embedded as a floating chat widget on any external website with just two lines of HTML - no backend required on the host site.
+A full-stack AI chat platform built on [Powabase](https://powabase.ai). Users sign up, create AI agents backed by their own knowledge bases, upload documents and URLs as sources, and chat with streaming responses. Public agents can be shared via a direct link or embedded as a floating chat widget on any external website with two lines of HTML.
 
-This app is designed to be a ready-to-deploy foundation. Clone it, point it at your Powabase project, and you have a fully functional multi-user AI chat platform.
-
-![Agents Screen](screenshots/agents-screen.png)
-*Agents screen - create and manage multiple AI agents, each with its own knowledge base*
-
-![Chat Screen](screenshots/chat-screen.png)
-*Chat screen - conversations, sources, and the Go Live embed snippet*
+Clone it, point it at your Powabase project, and you have a working multi-user AI chat platform.
 
 ## What it does
 
-**For your users (logged-in accounts):**
-- Sign up and log in with email and password
-- Create multiple AI agents, each with a custom name and system prompt
-- Upload documents or import website URLs into each agent's knowledge base for RAG-powered answers
-- Chat with agents in real time with streaming responses and full conversation history
-- Attach files or URLs directly in the chat input for one-off context without KB indexing
+**For logged-in users:**
+- Create multiple AI agents, each with a name, system prompt, avatar color, and emoji
+- Set an agent's knowledge mode: let the AI draw on both the knowledge base and its own training, or restrict it to only answer from what's in the knowledge base
+- Set company/product name and a support contact per agent
+- Upload documents (PDF, DOCX, TXT, CSV, PPTX, XLSX, images) or import URLs into each agent's knowledge base
+- Chat with streaming responses and full conversation history
+- Attach files or URLs directly in the chat input for one-off context without indexing them into the KB
 - Rename, search, and switch between past conversations
-- Export any conversation as a `.txt` file with a single click
-- View a usage dashboard showing sessions, exchanges, and estimated token usage per agent
-- Embed any agent as a widget on an external website via the Go Live section
+- Export any conversation as a `.txt` file
+- View a usage dashboard with per-agent stats and platform limits
+- Set agents to Public or Private — only Public agents can be shared or embedded
 
-**For visitors on embedded websites (no account needed):**
-- Chat with the embedded agent directly on any website
+**For visitors (no account needed):**
+- Open a public agent's shareable link and chat in a full-screen browser page
+- Chat with an agent embedded on any website without leaving the page
 - Upload files or import URLs as session context
-- Conversation history persists in the browser across visits
-- Switch between past sessions via a sliding sidebar
+- Switch between past sessions via a sliding sidebar (stored in `localStorage`)
 
 ## Features
 
-- **Multi-agent workspace** - create and manage multiple AI agents, each with its own system prompt and dedicated knowledge base
-- **Knowledge base sources** - upload documents (PDF, DOCX, TXT, CSV, PPTX, XLSX, images) or import URLs into an agent's KB for RAG-powered answers
-- **Session-scoped context** - attach files or URLs directly in the chat input; their extracted text is injected inline as context without indexing into the KB
-- **Streaming responses** - answers stream token-by-token over SSE in real time with a live typing indicator
-- **Conversation history** - sessions persist server-side; users can rename, search, and switch between past conversations
-- **Export conversations** - download any conversation as a `.txt` file; attached sources are listed once at the top, not repeated in every message
-- **Usage dashboard** - `/usage` page shows per-agent session count, message exchange count, and estimated token usage
-- **Embeddable widget** - two-line HTML snippet generates a floating chat button on any website; no backend required on the host site
-- **Widget session sidebar** - visitors can switch between past conversations, rename them, and search - all persisted in `localStorage`
-- **Markdown rendering** - assistant responses render rich markdown (headers, lists, code blocks, bold/italic)
-- **Cookie-based auth** - `httpOnly` cookies with 30-day rolling expiry; automatic token refresh on every request
-- **Session token limit** - enforces a 50,000-token per-session cap with a clear "start a new chat" prompt when reached
+- **Two-step agent creation** — first step sets name and system prompt; second step sets company/product, support contact, and knowledge mode. The agent is created after step one; step two saves preferences on top of it.
+- **Knowledge mode** — two options at creation and in settings. "AI + Knowledge Base" has the agent search the KB first, then fill gaps with its own training. "Knowledge Base only" restricts it to KB results — if the answer isn't there, it says so rather than guessing.
+- **Agent card management** — a three-dot hover menu on each card lets you rename inline, duplicate, share, or delete. Deleting shows a confirmation before anything is removed.
+- **Public / Private visibility** — Private agents cannot be shared or embedded. The Go Live section shows a lock screen for private agents with a direct link to settings. The sidebar shows a lock badge on the Go Live nav item for private agents.
+- **Shareable chat link** — each public agent has a `/chat/[agentId]` page. The URL encodes display name, avatar color, emoji, and welcome message so visitors see the right branding without any server lookup.
+- **Share modal** — clicking Share in the card menu (or copying from Go Live) opens a small dialog with the full URL and a copy button.
+- **Embeddable widget** — a two-line HTML snippet drops a floating chat button onto any website. No backend required on the host site. Only available for Public agents.
+- **Streaming responses** — answers stream token-by-token over SSE with a live typing indicator
+- **Conversation history** — sessions persist server-side; users can rename, search, and switch
+- **Export conversations** — downloads as `.txt`; attached sources are listed at the top, not repeated in every message
+- **Usage dashboard** — per-agent session count, message exchange count, estimated token usage, and a platform limits reference (50K session token cap, 25-page file limit, 10-chunk KB retrieval, etc.)
+- **Markdown rendering** — assistant responses render headers, lists, code blocks, bold/italic
+- **Cookie-based auth** — `httpOnly` cookies with 30-day rolling expiry
 
 ## Powabase features used
 
-- **Sources** - upload files and import URLs for text extraction via the Powabase Firecrawl integration
-- **Knowledge Bases** - one KB per agent, indexed with `chunk_embed` strategy and hybrid retrieval
-- **Agents** - each agent has a custom system prompt and is linked to its own KB
-- **Sessions** - Powabase manages server-side conversation history; the app stores only the session ID
-- **Streaming (SSE)** - `POST /api/agents/{id}/run/stream` drives real-time token delivery
-- **Auth (GoTrue)** - email/password signup and login; tokens verified server-side on every API request
-- **PostgREST** - the `session_sources` table stores session-scoped attachment metadata (see Database setup below)
+- **Sources** — file uploads and URL imports via Powabase's Firecrawl integration
+- **Knowledge Bases** — one KB per agent, indexed with `chunk_embed` strategy and hybrid retrieval
+- **Agents** — each agent has a custom system prompt linked to its own KB; knowledge mode is encoded in the system prompt at creation/update time
+- **Sessions** — Powabase manages server-side conversation history; the app stores only the session ID
+- **Streaming (SSE)** — `POST /api/agents/{id}/run/stream` drives real-time token delivery
+- **Auth (GoTrue)** — email/password signup and login; tokens verified server-side on every API request
+- **PostgREST** — the `session_sources` table stores session-scoped attachment metadata
 
 ## Architecture
 
 ```
 Browser
   |
-  |- app/page.tsx          Main SPA - agent selection, chat, conversation management
-  |- app/login/page.tsx    Sign in / Sign up
-  +- app/widget/page.tsx   Iframe chat UI (embedded on external sites)
+  |- app/page.tsx              Main SPA — agent selection, chat, conversation management
+  |- app/login/page.tsx        Sign in / sign up
+  |- app/chat/[agentId]/       Public shareable chat page (no auth)
+  |- app/usage/page.tsx        Usage dashboard
+  +- app/widget/page.tsx       Iframe chat UI (embedded on external sites)
         |
         v
-  Next.js API Routes (server-side, authenticated)
-  |- /api/auth/*           Login, signup, logout, password reset
-  |- /api/user/setup       Bootstrap first agent for new users
-  |- /api/agents/*         CRUD for agents + KBs
-  |- /api/chat             Authenticated SSE streaming proxy - Powabase
-  |- /api/sessions/*       List, delete, load history for conversations
-  |- /api/sources/*        List, delete, fetch content for KB sources
-  |- /api/upload           Upload file - Powabase KB
-  |- /api/session-sources  Session-scoped attachments (no KB indexing)
-  |- /api/usage            Per-agent usage stats (sessions, runs, token estimates)
-  +- /api/widget/*         Public (no auth) - chat, attach-file, attach-url
+  Next.js API Routes (server-side)
+  |- /api/auth/*               Login, signup, logout, password reset
+  |- /api/user/setup           Bootstrap first agent for new users
+  |- /api/agents/*             Agent + KB CRUD (knowledge_mode accepted on POST and PATCH)
+  |- /api/chat                 Authenticated SSE streaming proxy
+  |- /api/sessions/*           List, delete, load history
+  |- /api/sources/*            KB source management
+  |- /api/upload               File upload to KB
+  |- /api/session-sources      Session-scoped attachments (no KB indexing)
+  |- /api/usage                Per-agent stats
+  +- /api/widget/*             Public (no auth) — chat, attach-file, attach-url
         |
         v
   Powabase (AI BaaS)
-  |- GoTrue Auth           User identity
-  |- Agents + KBs          System prompts, knowledge base search
-  |- Sources               File/URL extraction (Firecrawl)
-  |- Sessions + Runs       Conversation history
-  +- PostgREST             session_sources table
+  |- GoTrue Auth               User identity
+  |- Agents + KBs              System prompts, knowledge base search
+  |- Sources                   File/URL extraction (Firecrawl)
+  |- Sessions + Runs           Conversation history
+  +- PostgREST                 session_sources table
 ```
+
+## Knowledge mode and system prompts
+
+When an agent is created or updated, the API appends one of two instruction blocks to the system prompt based on `knowledge_mode`:
+
+- `"ai"` (default) — instructs the agent to call `knowledge_search` first, then draw on its own training to expand or fill gaps
+- `"kb"` — instructs the agent to only answer from KB results; if the answer isn't found, it tells the user rather than guessing
+
+The instruction is stored as part of the system prompt in Powabase. Changing the mode via Agent Settings issues a PATCH with the new prompt variant.
+
+## Agent preferences
+
+Per-agent preferences are saved in `localStorage` under `agentPrefs_{agentId}` and are never sent to Powabase. They control client-side display and behavior:
+
+| Field | Description |
+|---|---|
+| `displayName` | Name shown in the UI (defaults to the Powabase agent name) |
+| `avatarColor` | Hex color for the avatar circle and accent |
+| `avatarEmoji` | Optional emoji shown in place of the initial |
+| `welcomeMessage` | First message shown when opening a new chat |
+| `visibility` | `"public"` or `"private"` — controls sharing and embedding |
+| `companyName` | Company or product this agent represents |
+| `supportContact` | Email or phone shown in agent settings |
+| `knowledgeMode` | `"ai"` or `"kb"` — mirrors what was sent to the server |
 
 ## Database setup
 
-This app requires one table in your Powabase project: `session_sources`. It stores the extracted text of files and URLs attached directly in the chat input (session-scoped context that is injected inline rather than indexed into a KB).
+One table is required: `session_sources`. It stores the extracted text of files and URLs attached inline in the chat (injected as context without being indexed into the KB).
 
-Run this SQL in your Powabase project under **SQL Editor**:
+Run this in your Powabase project under **SQL Editor**:
 
 ```sql
 create table if not exists public.session_sources (
@@ -109,10 +131,8 @@ create table if not exists public.session_sources (
   created_at    timestamptz not null default now()
 );
 
--- Enable Row Level Security
 alter table public.session_sources enable row level security;
 
--- Users can only read and write their own rows
 create policy "Users manage their own session sources"
   on public.session_sources
   for all
@@ -120,46 +140,42 @@ create policy "Users manage their own session sources"
   with check (auth.uid() = user_id);
 ```
 
-**Column reference:**
-
 | Column | Type | Description |
 |---|---|---|
 | `id` | uuid | Primary key, auto-generated |
-| `user_id` | uuid | References `auth.users` - scopes rows to the logged-in user |
-| `session_id` | text | The Powabase agent session ID this attachment belongs to |
-| `source_id` | text | Internal reference ID for the attachment |
+| `user_id` | uuid | References `auth.users` — scopes rows to the logged-in user |
+| `session_id` | text | The Powabase agent session this attachment belongs to |
+| `source_id` | text | Internal reference ID |
 | `name` | text | Display name (filename or URL) |
 | `type` | text | `"file"` or `"url"` |
-| `extracted_text` | text | Full extracted markdown/text content injected as context |
+| `extracted_text` | text | Full extracted content injected as context |
 | `created_at` | timestamptz | When the attachment was added |
-
-RLS ensures each user can only read and write their own rows - no additional auth checks are needed in the API routes.
 
 ## Ownership model
 
-No extra tables are needed for agent or source ownership. Ownership is encoded directly in the Powabase object name fields:
+No extra tables for agents or sources. Ownership is encoded in Powabase name fields:
 
-- **Agents**: `{userId}__{kbId}__{displayName}` - parsed server-side to filter each user's agents
-- **Sources**: `{userId}:{kbIds}:{uuid}:{filename}` - multiple KBs joined with `+` when a source is shared
+- **Agents**: `{userId}__{kbId}__{displayName}` — parsed server-side to filter each user's agents
+- **Sources**: `{userId}:{kbIds}:{uuid}:{filename}` — multiple KBs joined with `+` when shared
 
-The `session_sources` table is the only application-specific table in the entire app.
+`session_sources` is the only application-specific table.
 
 ## Session-scoped vs KB-indexed context
 
-There are two ways to give an agent context in this app:
-
 | Method | How | Indexed in KB? | Persists across sessions? |
 |---|---|---|---|
-| Upload via Sources modal | Drag-drop or URL import | Yes (RAG) | Yes |
-| Attach in chat input (`+` button) | File or URL per message | No (injected inline) | For that session only |
+| Upload via Sources panel | Drag-drop or URL import | Yes (RAG) | Yes |
+| Attach in chat input (`+`) | File or URL per message | No (injected inline) | That session only |
 
-Chat-input attachments prepend extracted text to the message as `[Context: File - name]\n...\n\n---\n\n`. This text is stripped when displaying old messages so users only see their original question.
+Chat-input attachments prepend extracted text to the message as `[Context: File - name]\n...\n\n---\n\n`. This prefix is stripped when displaying old messages.
 
-## Embeddable widget
+## Public agents and sharing
 
-### How to embed
+Set an agent's visibility to **Public** in Agent Settings to unlock sharing and embedding.
 
-Paste into the `<head>` or end of `<body>` of any website:
+**Shareable link** — each public agent gets a `/chat/[agentId]` page. Display params (name, color, emoji, welcome message) are encoded in the URL query string so visitors see the right branding with no server-side store. Copy the link from the Go Live section or the Share option in the card menu.
+
+**Embed widget** — paste the two-line snippet into any website's `<head>` or end of `<body>`:
 
 ```html
 <script>
@@ -168,41 +184,33 @@ Paste into the `<head>` or end of `<body>` of any website:
 <script src="https://YOUR_APP_URL/widget.js" defer></script>
 ```
 
-The **Go Live** section in the sidebar generates this snippet automatically for each agent.
+The Go Live section in the sidebar generates this snippet for you. Private agents show a lock screen in Go Live instead of the snippet.
 
 ### What the widget does
 
-- Injects a floating blue chat button (bottom-right, 68x68px)
-- Opens a 390x620px chat panel as an iframe on click
-- No authentication required for visitors
-- Streams responses in real time with markdown rendering
-- Supports file uploads (up to 25 pages) and URL imports as session context
-- Sliding sidebar with conversation history, search, and rename - persisted in `localStorage`
-- Mobile responsive (full-width below 460px)
-
-### Widget session persistence
-
-Visitor sessions are stored in `localStorage` under `widget_sessions_{agentId}`. Sessions persist until the visitor clears their browser storage or uses incognito mode. Visitors can start a new session at any time via the refresh icon in the widget header.
+- Floating chat button, bottom-right, 68×68px
+- Opens a 390×620px chat panel as an iframe
+- No auth required for visitors
+- Streams responses with markdown rendering
+- Supports file uploads (up to 25 pages) and URL imports
+- Sliding sidebar with conversation history, search, and rename — stored in `localStorage`
+- Full-width below 460px
 
 ## Prerequisites
 
-- A [Powabase](https://powabase.ai) project (see Setting up Powabase below)
-- The `session_sources` table created (see Database setup above)
+- A [Powabase](https://powabase.ai) project
+- The `session_sources` table created (see above)
 - Node 20+ / npm
-- An AWS account (for hosting via Amplify)
+- An AWS account (for Amplify hosting)
 
 ## Setting up Powabase
 
-If you do not have a Powabase project yet, follow these steps first:
-
 1. Go to [https://powabase.ai](https://powabase.ai) and create an account
-2. Click **New Project**, give it a name, and wait for it to finish provisioning
+2. Click **New Project**, name it, and wait for provisioning to finish
 3. Click **Connect** at the top of the page
-4. Copy the **Project URL** - this is your `POWABASE_URL`
-5. Copy the **Secret key** (the long string starting with `ey`) - this is your `POWABASE_KEY`
-6. Go to **SQL Editor** in your Powabase dashboard and run the SQL from the Database setup section above to create the `session_sources` table
-
-Once you have the URL and key, add them to your `.env.local` file (local development) or Amplify environment variables (hosted deployment).
+4. Copy the **Project URL** — this is your `POWABASE_URL`
+5. Copy the **Secret key** (the long string starting with `ey`) — this is your `POWABASE_KEY`
+6. Go to **SQL Editor** and run the SQL from Database setup above
 
 ## Local development
 
@@ -217,39 +225,31 @@ Once you have the URL and key, add them to your `.env.local` file (local develop
    npm install
    ```
 
-3. Create a `.env.local` file in the project root:
+3. Create a `.env.local` file:
    ```env
    POWABASE_URL=https://your-project.powabase.ai
    POWABASE_KEY=your-service-role-key
    ```
-
    Find these in your Powabase dashboard under **Project Settings -> API**.
 
-4. Start the development server:
+4. Start the dev server:
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) and sign up for an account.
+5. Open [http://localhost:3000](http://localhost:3000) and sign up.
 
 ## Hosting on AWS Amplify
 
 ### 1. Install the AWS CLI
 
-**Mac (Intel or Apple Silicon):**
+**Mac:**
 ```bash
 curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
 sudo installer -pkg AWSCLIV2.pkg -target /
 ```
 
-**Windows:**
-
-Download and run the MSI installer:
-```
-https://awscli.amazonaws.com/AWSCLIV2.msi
-```
-
-After installing, close and reopen your terminal. If `aws` is still not recognized, open **Start -> Search "Environment Variables" -> Edit the system environment variables -> Environment Variables -> System variables -> Path -> Edit** and add `C:\Program Files\Amazon\AWSCLIV2\` if it is not already there.
+**Windows:** Download and run [AWSCLIV2.msi](https://awscli.amazonaws.com/AWSCLIV2.msi). If `aws` is not recognized after installing, add `C:\Program Files\Amazon\AWSCLIV2\` to your PATH via **Start -> Environment Variables -> System variables -> Path -> Edit**.
 
 **Linux:**
 ```bash
@@ -258,61 +258,42 @@ unzip awscliv2.zip
 sudo ./aws/install
 ```
 
-Verify the installation on any OS:
-```bash
-aws --version
-```
+Verify: `aws --version`
 
-You should see something like `aws-cli/2.x.x`.
+### 2. Configure the CLI
 
-### 2. Configure the AWS CLI
-
-Run:
 ```bash
 aws configure
 ```
 
-You will be prompted for:
-- **AWS Access Key ID** - from your AWS console under Security credentials -> Access keys -> Create access key
-- **AWS Secret Access Key** - shown once when you create the access key
-- **Default region name** - enter `us-east-1`
-- **Default output format** - enter `json`
-
-Verify it is connected:
-```bash
-aws sts get-caller-identity
-```
-
-You should see your account ID returned.
+Enter your Access Key ID, Secret Access Key, region (`us-east-1`), and output format (`json`). Verify with `aws sts get-caller-identity`.
 
 ### 3. Connect your repository
 
-1. Go to [https://console.aws.amazon.com/amplify](https://console.aws.amazon.com/amplify)
+1. Go to the [Amplify console](https://console.aws.amazon.com/amplify)
 2. Click **Create new app** and select **GitHub**
-3. Authorize AWS and select the `powabase-app` repository and the `main` branch
+3. Authorize AWS, select the repository and `main` branch
 4. Leave the auto-detected build settings and click **Save and deploy**
 
 ### 4. Add environment variables
 
-In Amplify, go to **Environment variables** in the left sidebar and add:
+In Amplify, go to **Environment variables** and add:
 
 | Variable | Value |
 |---|---|
 | `POWABASE_URL` | Your Powabase project URL (no trailing slash) |
-| `POWABASE_KEY` | Your Powabase service role key (the secret key starting with `ey`) |
+| `POWABASE_KEY` | Your Powabase service role key |
 
 Then go to **Deployments** and click **Redeploy this version**.
 
-### 5. Done
-
-Your app is live at the Amplify URL (e.g. `https://main.xxxx.amplifyapp.com`). Update your widget embed snippet to use this URL.
+Your app is live at the Amplify URL (e.g. `https://main.xxxx.amplifyapp.com`). Update widget embed snippets to use this URL.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
 | `POWABASE_URL` | Yes | Base URL of your Powabase project |
-| `POWABASE_KEY` | Yes | Service role key (server-side only, never exposed to the browser) |
+| `POWABASE_KEY` | Yes | Service role key — server-side only, never sent to the browser |
 
 ## Project structure
 
@@ -321,74 +302,80 @@ app/
 |- api/
 |   |- auth/              Login, signup, logout, me
 |   |- user/setup         Bootstrap new users
-|   |- agents/            Agent + KB CRUD
+|   |- agents/            Agent + KB CRUD (knowledge_mode on POST/PATCH)
 |   |- chat/              Authenticated SSE chat proxy
 |   |- sessions/          Conversation list and history
 |   |- sources/           KB source management
 |   |- upload/            File upload to KB
 |   |- session-sources/   Session-scoped attachments
+|   |- usage/             Per-agent stats
 |   +- widget/            Public chat, attach-file, attach-url
-|- login/                 Sign in / sign up / forgot password page
-|- reset-password/        Password reset page (reads token from URL hash)
-|- usage/                 Usage dashboard
+|- chat/[agentId]/        Public shareable chat page
+|- login/                 Sign in / sign up / forgot password
+|- usage/                 Usage dashboard with platform limits
 |- widget/                Iframe chat UI
 +- page.tsx               Main SPA
 
 components/
-|- AgentsScreen.tsx       Agent card grid with create/edit/delete/search
-|- Sidebar.tsx            Conversation list, search, rename, export, Go Live section, usage link
-|- ChatArea.tsx           Message history with markdown rendering
-|- MessageInput.tsx       Input bar with file/URL attachment
-+- SourcesModal.tsx       KB source management modal
+|- AgentsScreen.tsx        Agent card grid — create (2-step), rename, duplicate, share, delete
+|- AgentSettingsPanel.tsx  Settings panel — visibility, knowledge mode, avatar, company, contact
+|- Sidebar.tsx             Navigation — sessions, sources, Go Live (with lock badge for private agents)
+|- SessionsPanel.tsx       Conversation list, search, rename, export
+|- GoLivePanel.tsx         Share link + embed snippet (locked for private agents)
+|- CustomizationsPanel.tsx Avatar, color, emoji, welcome message, display name
+|- CollectedDataPanel.tsx  Data collected by the agent
+|- ChatArea.tsx            Message history with markdown rendering
+|- MessageInput.tsx        Input bar with file/URL attachment
++- SourcesModal.tsx        KB source management
 
 lib/
-|- powabase-server.ts     Server-only Powabase helpers + auth
-+- types.ts               TypeScript interfaces
+|- agentPrefs.ts           AgentPrefs type, localStorage helpers, knowledge mode instructions
+|- powabase-server.ts      Server-only Powabase helpers + auth
++- types.ts                TypeScript interfaces
 
 public/
-+- widget.js              Self-contained embeddable widget script
++- widget.js               Self-contained embeddable widget script
 ```
 
-## Notable design decisions
+## Design decisions
 
-- **No middleware for auth** - authentication is enforced per API route via `getUserFromCookie`. The client redirects to `/login?reason=session_expired` when `/api/user/setup` returns 401.
-- **Rolling cookie expiry** - on every authenticated request, both cookies are re-set to extend the 30-day expiry, so active users are never logged out unexpectedly.
-- **Ownership without extra tables** - agent and source ownership is encoded in Powabase name fields rather than a separate database table, keeping the schema minimal.
-- **25-page file limit** - files exceeding 25 pages are rejected after extraction to keep context sizes manageable.
-- **50,000-token session limit** - estimated at 4 chars/token across all runs in a session. When reached, a banner prompts the user to start a new chat.
+- **Auth per route, not middleware** — each API route calls `getUserFromCookie` directly. The client redirects to `/login?reason=session_expired` when setup returns 401.
+- **Rolling cookie expiry** — both cookies are re-set on every authenticated request to extend the 30-day window for active users.
+- **Ownership without extra tables** — agent and source ownership is encoded in Powabase name fields, not a separate table.
+- **Knowledge mode in system prompt** — rather than a separate database field, the mode is encoded as an appended instruction block in the system prompt. The API strips whichever variant is present before writing the new one on PATCH.
+- **Share link without a server store** — display preferences (name, color, emoji, welcome message) are encoded directly in the `/chat/[agentId]` URL query string. No extra table or API call needed for public visitors to see the right branding.
+- **50,000-token session cap** — estimated at 4 chars/token across all runs in a session. When hit, a banner tells the user to start a new chat.
+- **25-page file limit** — files over 25 pages are rejected after extraction to keep context sizes manageable.
 
 ## Known limitations
 
-- **Password reset requires SMTP** - the forgot password flow is built but emails will not send until SMTP is configured in your Powabase project under Authentication settings
-- **No social login** - only email and password auth is supported
-- **Widget branding is not customizable** - the button color, position, and header title are hardcoded in `public/widget.js`
-- **25-page file limit** - files over 25 pages are rejected; split large documents before uploading
-- **50,000-token session limit** - very long conversations will hit the cap; start a new chat to continue
-- **Widget attachments are not persisted** - files and URLs attached in the widget are session-scoped only and are lost when the page is refreshed
+- **Password reset requires SMTP** — the forgot password flow is built but emails won't send until SMTP is configured in Powabase under Authentication settings
+- **No social login** — email and password only
+- **Widget branding** — button color, position, and header title are set by the agent's preferences at embed time; changing them requires updating the snippet or agent settings
+- **Widget attachments are session-scoped** — files and URLs attached in the widget are lost on page refresh
+- **50,000-token session limit** — very long conversations will hit the cap; start a new chat to continue
+- **25-page file limit** — split large documents before uploading
 
 ## Troubleshooting
 
 **"TypeError: Failed to parse URL from undefined/auth/v1/..."**
-Your `POWABASE_URL` environment variable is not being read. Check that:
-- The variable is named exactly `POWABASE_URL` (uppercase, no spaces)
-- There is no trailing slash at the end of the URL
-- You redeployed after adding the variable in Amplify
+`POWABASE_URL` is not being read. Check that the variable name is exactly `POWABASE_URL` (uppercase, no spaces), there is no trailing slash, and you redeployed after adding it in Amplify.
 
 **"Invalid authentication credentials" on signup/login**
-Your `POWABASE_KEY` is incorrect. Go to your Powabase dashboard, click **Connect**, and copy the full secret key again. Make sure you copy the entire string with no extra spaces.
+`POWABASE_KEY` is wrong. Go to your Powabase dashboard, click **Connect**, and copy the full secret key again with no extra spaces.
 
-**"aws: command not found" on Windows after installing the CLI**
-The installer did not add AWS to your PATH. Open **Start -> Search "Environment Variables" -> Edit the system environment variables -> Environment Variables -> System variables -> Path -> Edit** and add `C:\Program Files\Amazon\AWSCLIV2\`. Then close and reopen your terminal.
+**"aws: command not found" on Windows**
+Add `C:\Program Files\Amazon\AWSCLIV2\` to your PATH (Start -> Environment Variables -> System variables -> Path -> Edit), then reopen the terminal.
 
 **Build fails on Amplify with a TypeScript error**
-Run `npm run build` locally first to catch TypeScript errors before pushing. Fix any errors, commit, and push again — Amplify will automatically redeploy.
+Run `npm run build` locally first. Fix any errors, commit, and push — Amplify redeploys automatically.
 
 **Amplify app not showing in the console**
-Make sure you are in the correct AWS region. The app is deployed in the region you selected during setup (e.g. `us-east-2`). Switch regions using the dropdown in the top right of the AWS console.
+Check that you're in the correct AWS region. Use the region dropdown in the top-right of the AWS console to switch.
 
 ## Powered by
 
-- [Powabase](https://powabase.ai) - AI BaaS (agents, knowledge bases, sources, auth, sessions)
-- [Next.js](https://nextjs.org) - React framework
-- [Tailwind CSS](https://tailwindcss.com) - styling
-- [AWS Amplify](https://aws.amazon.com/amplify/) - hosting
+- [Powabase](https://powabase.ai) — AI BaaS (agents, knowledge bases, sources, auth, sessions)
+- [Next.js](https://nextjs.org) — React framework
+- [Tailwind CSS](https://tailwindcss.com) — styling
+- [AWS Amplify](https://aws.amazon.com/amplify/) — hosting

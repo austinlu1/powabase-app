@@ -320,7 +320,7 @@ function WidgetChat() {
 
   if (!agentId) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0d1117] text-white/40 text-sm">
+      <div className="flex h-screen items-center justify-center bg-[#0a0a0a] text-white/40 text-sm">
         No agent configured.
       </div>
     );
@@ -331,7 +331,7 @@ function WidgetChat() {
   );
 
   return (
-    <div className="flex flex-col h-screen bg-[#0d1117] text-white overflow-hidden relative">
+    <div className="flex flex-col h-screen bg-[#0a0a0a] text-white overflow-hidden relative">
 
       {/* ── Sidebar ── */}
       {/* Backdrop */}
@@ -343,7 +343,7 @@ function WidgetChat() {
       )}
 
       {/* Panel */}
-      <div className={`absolute top-0 left-0 h-full w-60 bg-[#111827] border-r border-white/10 z-30 flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className={`absolute top-0 left-0 h-full w-60 bg-[#141414] border-r border-white/10 z-30 flex flex-col transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         {/* Sidebar header */}
         <div className="shrink-0 px-3 pt-3 pb-2 border-b border-white/10 space-y-2">
           <div className="flex items-center justify-between">
@@ -426,7 +426,7 @@ function WidgetChat() {
       </div>
 
       {/* ── Header ── */}
-      <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#111827] flex items-center justify-between">
+      <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-[#141414] flex items-center justify-between">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           title="Conversations"
@@ -496,7 +496,7 @@ function WidgetChat() {
       </div>
 
       {/* ── Input ── */}
-      <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-[#111827] space-y-2">
+      <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-[#141414] space-y-2">
 
         {/* Attachment chips */}
         {attachments.length > 0 && (
@@ -561,7 +561,7 @@ function WidgetChat() {
             </button>
 
             {popoverOpen && (
-              <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#1f2937] border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
+              <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-xl overflow-hidden z-10">
                 {!urlMode ? (
                   <>
                     <p className="px-3 pt-2.5 pb-1 text-xs text-white/30 font-medium uppercase tracking-wider">Add context</p>

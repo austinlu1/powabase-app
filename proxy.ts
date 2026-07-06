@@ -10,10 +10,6 @@ export function proxy(req: NextRequest) {
 
   // Allow auth routes and login page through always
   if (pathname.startsWith("/api/auth") || pathname.startsWith("/login")) {
-    // If already logged in, redirect away from login page to home
-    if (pathname.startsWith("/login") && token) {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
     return NextResponse.next();
   }
 

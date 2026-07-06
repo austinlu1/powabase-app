@@ -52,7 +52,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
 
         {/* Logo / brand */}
@@ -72,7 +72,7 @@ function LoginForm() {
         </div>
 
         {/* Card */}
-        <div className="bg-[#1f2937] border border-white/10 rounded-2xl p-6 shadow-2xl">
+        <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 shadow-2xl">
           <div className="flex rounded-lg bg-white/5 p-1 mb-6">
             {(["login", "signup"] as Mode[]).map((m) => (
               <button
